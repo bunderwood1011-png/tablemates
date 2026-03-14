@@ -392,9 +392,8 @@ function MainApp({ user }) {
           </button>
 
           <div style={{ textAlign: 'center' }}>
-            <h1 className="logo">table<span>mates</span></h1>
-            <p className="tagline">dinner, handled.</p>
-            <p style={{ fontSize: '11px', color: '#999', marginTop: '6px' }}>{user.email}</p>
+  <h1 className="logo">table<span>mates</span></h1>
+  <p className="tagline">dinner, handled.</p>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', flexShrink: 0 }}>

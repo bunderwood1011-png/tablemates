@@ -259,7 +259,8 @@ function Schedule({ schedule, setSchedule }) {
             lineHeight: '1.5'
           }}
         >
-          add what you have going on each night and Tablemates will figure out whether it’s busy, moderate, or relaxed.
+          Add activities like practices, games, or events and Tablemates will determine how busy each night is. 
+Busy nights get quicker dinners, while relaxed nights can get more involved meals.
         </div>
       </div>
 
