@@ -174,6 +174,7 @@ function MainApp({ user }) {
     }
   };
 
+  
   const setMeals = async (newMealsOrUpdater) => {
   const resolvedMeals =
     typeof newMealsOrUpdater === 'function'
@@ -182,6 +183,7 @@ function MainApp({ user }) {
 
   setMealsRaw(resolvedMeals);
 
+  console.log('SET MEALS RAN');
   console.log('Saving meals to Supabase...', {
     user_id: user.id,
     week_key: weekKey,
@@ -196,8 +198,30 @@ function MainApp({ user }) {
 
   if (deleteError) {
     console.error('Error deleting old weekly meals:', deleteError);
+    alert('Delete failed: ' + deleteError.message);
     return;
   }
+
+  const { data, error: insertError } = await supabase
+    .from('weekly_meals')
+    .insert([
+      {
+        user_id: user.id,
+        week_key: weekKey,
+        meals: resolvedMeals
+      }
+    ])
+    .select();
+
+  if (insertError) {
+    console.error('Error saving meals:', insertError);
+    alert('Save failed: ' + insertError.message);
+    return;
+  }
+
+  console.log('Meals saved successfully:', data);
+  alert('Meals saved to Supabase!');
+};
 
   const { data, error: insertError } = await supabase
     .from('weekly_meals')
