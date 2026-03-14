@@ -30,8 +30,7 @@ function MainApp({ user }) {
   const [activeTab, setActiveTab] = useState('week');
   const [profilesUpdatedAfterMeals, setProfilesUpdatedAfterMeals] = useState(false);
   const [highlightedRecipe, setHighlightedRecipe] = useState(null);
-  const [showSearch, setShowSearch] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+ 
 
   const [members, setMembersRaw] = useState(() => {
     try {
