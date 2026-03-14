@@ -29,6 +29,8 @@ function MainApp({ user }) {
 
   const [members, setMembersRaw] = useState([]);
   const [meals, setMealsRaw] = useState({});
+  const [schedule, setScheduleRaw] = useState(DEFAULT_SCHEDULE);
+
   const [shoppingList, setShoppingList] = useState(() => {
     try {
       const s = localStorage.getItem('tm_shopping');
@@ -37,6 +39,7 @@ function MainApp({ user }) {
       return null;
     }
   });
+
   const [savedWeeks, setSavedWeeks] = useState(() => {
     try {
       const s = localStorage.getItem('tm_saved_weeks');
@@ -45,20 +48,13 @@ function MainApp({ user }) {
       return [];
     }
   });
+
   const [recipes, setRecipes] = useState(() => {
     try {
       const s = localStorage.getItem('tm_recipes');
       return s ? JSON.parse(s) : [];
     } catch {
       return [];
-    }
-  });
-  const [schedule, setSchedule] = useState(() => {
-    try {
-      const s = localStorage.getItem('tm_schedule');
-      return s ? JSON.parse(s) : DEFAULT_SCHEDULE;
-    } catch {
-      return DEFAULT_SCHEDULE;
     }
   });
 
@@ -114,8 +110,24 @@ function MainApp({ user }) {
   }, [user, weekKey]);
 
   useEffect(() => {
-    localStorage.setItem('tm_schedule', JSON.stringify(schedule));
-  }, [schedule]);
+    const loadSchedule = async () => {
+      const { data, error } = await supabase
+        .from('schedules')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error loading schedule:', error);
+        setScheduleRaw(DEFAULT_SCHEDULE);
+        return;
+      }
+
+      setScheduleRaw(data?.schedule || DEFAULT_SCHEDULE);
+    };
+
+    loadSchedule();
+  }, [user]);
 
   useEffect(() => {
     localStorage.setItem('tm_shopping', JSON.stringify(shoppingList));
@@ -174,72 +186,79 @@ function MainApp({ user }) {
     }
   };
 
-  
   const setMeals = async (newMealsOrUpdater) => {
-  const resolvedMeals =
-    typeof newMealsOrUpdater === 'function'
-      ? newMealsOrUpdater(meals)
-      : newMealsOrUpdater;
+    const resolvedMeals =
+      typeof newMealsOrUpdater === 'function'
+        ? newMealsOrUpdater(meals)
+        : newMealsOrUpdater;
 
-  setMealsRaw(resolvedMeals);
+    setMealsRaw(resolvedMeals);
 
-  console.log('SET MEALS RAN');
-  console.log('Saving meals to Supabase...', {
-    user_id: user.id,
-    week_key: weekKey,
-    meals: resolvedMeals
-  });
+    const { error: deleteError } = await supabase
+      .from('weekly_meals')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('week_key', weekKey);
 
-  const { error: deleteError } = await supabase
-    .from('weekly_meals')
-    .delete()
-    .eq('user_id', user.id)
-    .eq('week_key', weekKey);
+    if (deleteError) {
+      console.error('Error deleting old weekly meals:', deleteError);
+      return;
+    }
 
-  if (deleteError) {
-    console.error('Error deleting old weekly meals:', deleteError);
-    alert('Delete failed: ' + deleteError.message);
-    return;
-  }
+    const { data, error: insertError } = await supabase
+      .from('weekly_meals')
+      .insert([
+        {
+          user_id: user.id,
+          week_key: weekKey,
+          meals: resolvedMeals
+        }
+      ])
+      .select();
 
-  const { data, error: insertError } = await supabase
-    .from('weekly_meals')
-    .insert([
-      {
-        user_id: user.id,
-        week_key: weekKey,
-        meals: resolvedMeals
-      }
-    ])
-    .select();
+    if (insertError) {
+      console.error('Error saving meals:', insertError);
+      return;
+    }
 
-  if (insertError) {
-    console.error('Error saving meals:', insertError);
-    alert('Save failed: ' + insertError.message);
-    return;
-  }
+    console.log('Meals saved successfully:', data);
+  };
 
-  console.log('Meals saved successfully:', data);
-};
+  const setSchedule = async (newScheduleOrUpdater) => {
+    const resolvedSchedule =
+      typeof newScheduleOrUpdater === 'function'
+        ? newScheduleOrUpdater(schedule)
+        : newScheduleOrUpdater;
 
-  const { data, error: insertError } = await supabase
-    .from('weekly_meals')
-    .insert([
-      {
-        user_id: user.id,
-        week_key: weekKey,
-        meals: resolvedMeals
-      }
-    ])
-    .select();
+    setScheduleRaw(resolvedSchedule);
 
-  if (insertError) {
-    console.error('Error saving meals:', insertError);
-    return;
-  }
+    const { error: deleteError } = await supabase
+      .from('schedules')
+      .delete()
+      .eq('user_id', user.id);
 
-  console.log('Meals saved successfully:', data);
-};
+    if (deleteError) {
+      console.error('Error deleting old schedule:', deleteError);
+      return;
+    }
+
+    const { data, error: insertError } = await supabase
+      .from('schedules')
+      .insert([
+        {
+          user_id: user.id,
+          schedule: resolvedSchedule
+        }
+      ])
+      .select();
+
+    if (insertError) {
+      console.error('Error saving schedule:', insertError);
+      return;
+    }
+
+    console.log('Schedule saved successfully:', data);
+  };
 
   const handleShoppingListReady = (list) => {
     setShoppingList(list);
