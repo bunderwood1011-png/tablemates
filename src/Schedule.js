@@ -1,106 +1,107 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const OPTIONS = ['busy', 'moderate', 'relaxed'];
 
-function Schedule() {
-  const [schedule, setSchedule] = useState({
-    Monday:    { events: [], pace: 'relaxed' },
-    Tuesday:   { events: ['Soccer practice 5–7pm'], pace: 'busy' },
-    Wednesday: { events: ['Piano lessons 4–5pm'], pace: 'moderate' },
-    Thursday:  { events: [], pace: 'relaxed' },
-    Friday:    { events: [], pace: 'relaxed' },
-    Saturday:  { events: [], pace: 'relaxed' },
-    Sunday:    { events: [], pace: 'relaxed' },
-  });
+const optionStyles = {
+  busy: {
+    background: '#FCEBEB',
+    color: '#A32D2D',
+    border: '1px solid #F5C9C9'
+  },
+  moderate: {
+    background: '#FAEEDA',
+    color: '#BA7517',
+    border: '1px solid #F1D6A8'
+  },
+  relaxed: {
+    background: '#E1F5EE',
+    color: '#1D9E75',
+    border: '1px solid #BFE7D8'
+  }
+};
 
-  const [newEvent, setNewEvent] = useState('');
-  const [activeDay, setActiveDay] = useState(null);
-
-  const today = DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1];
-
-  const paceLabel = {
-    relaxed: 'open evening',
-    moderate: 'moderate',
-    busy: 'busy night'
-  };
-
-  const paceClass = {
-    relaxed: 'pace-relaxed',
-    moderate: 'pace-moderate',
-    busy: 'pace-busy'
-  };
-
-  const addEvent = (day) => {
-    if (!newEvent.trim()) return;
-    setSchedule(prev => ({
+function Schedule({ schedule, setSchedule }) {
+  const updateDay = (day, value) => {
+    setSchedule((prev) => ({
       ...prev,
-      [day]: {
-        ...prev[day],
-        events: [...prev[day].events, newEvent.trim()],
-        pace: 'busy'
-      }
+      [day]: value
     }));
-    setNewEvent('');
-    setActiveDay(null);
-  };
-
-  const removeEvent = (day, index) => {
-    setSchedule(prev => {
-      const updated = prev[day].events.filter((_, i) => i !== index);
-      return {
-        ...prev,
-        [day]: {
-          ...prev[day],
-          events: updated,
-          pace: updated.length === 0 ? 'relaxed' : prev[day].pace
-        }
-      };
-    });
   };
 
   return (
     <div>
-      {DAYS.map(day => (
-        <div key={day} className={`day-card ${day === today ? 'today-card' : ''}`}>
-          <div className="day-header">
-            <div className="day-title">
-              {day}
-              {day === today && <span className="today-pill">tonight</span>}
-            </div>
-            <span className={`pace-badge ${paceClass[schedule[day].pace]}`}>
-              {paceLabel[schedule[day].pace]}
-            </span>
+      <div
+        style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          padding: '16px',
+          marginBottom: '16px',
+          border: '1px solid #ececec'
+        }}
+      >
+        <div style={{ fontSize: '16px', fontWeight: '700', marginBottom: '6px', color: '#1a1a1a' }}>
+          your weekly pace
+        </div>
+        <div style={{ fontSize: '13px', color: '#777', lineHeight: '1.5' }}>
+          set how hectic each night feels so Tablemates can plan meals that actually match real life.
+        </div>
+      </div>
+
+      {DAYS.map((day) => (
+        <div
+          key={day}
+          style={{
+            background: '#fff',
+            borderRadius: '16px',
+            padding: '16px',
+            marginBottom: '12px',
+            border: '1px solid #ececec'
+          }}
+        >
+          <div
+            style={{
+              fontSize: '15px',
+              fontWeight: '700',
+              color: '#1a1a1a',
+              marginBottom: '12px'
+            }}
+          >
+            {day}
           </div>
 
-          <div className="event-list">
-            {schedule[day].events.map((event, i) => (
-              <div key={i} className="event-tag">
-                {event}
-                <span className="remove-x" onClick={() => removeEvent(day, i)}>×</span>
-              </div>
-            ))}
-            {activeDay === day ? (
-              <div className="input-row">
-                <input
-                  className="text-input small"
-                  placeholder="e.g. Soccer practice 5–7pm"
-                  value={newEvent}
-                  onChange={e => setNewEvent(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addEvent(day)}
-                  autoFocus
-                />
-                <button className="add-tag-btn" onClick={() => addEvent(day)}>+</button>
-              </div>
-            ) : (
-              <button className="add-event-btn" onClick={() => setActiveDay(day)}>+ add event</button>
-            )}
-          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {OPTIONS.map((option) => {
+              const isActive = (schedule?.[day] || 'relaxed') === option;
 
-          {day === today && schedule[day].pace === 'busy' && (
-            <div className="suggestion-hint">
-              Suggesting quick meals tonight — 20 min or less
-            </div>
-          )}
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => updateDay(day, option)}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: '999px',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    textTransform: 'lowercase',
+                    transition: 'all 0.15s ease',
+                    ...(isActive
+                      ? optionStyles[option]
+                      : {
+                          background: '#f6f6f6',
+                          color: '#777',
+                          border: '1px solid #e3e3e3'
+                        })
+                  }}
+                >
+                  {option}
+                </button>
+              );
+            })}
+          </div>
         </div>
       ))}
     </div>
