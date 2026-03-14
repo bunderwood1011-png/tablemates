@@ -220,7 +220,6 @@ function MainApp({ user }) {
   }
 
   console.log('Meals saved successfully:', data);
-  alert('Meals saved to Supabase!');
 };
 
   const { data, error: insertError } = await supabase
