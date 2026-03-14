@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import './App.css';
 import Profiles from './Profiles';
 import Schedule from './Schedule';
@@ -28,6 +28,31 @@ function MainApp({ user }) {
   const [searchQuery, setSearchQuery] = useState('');
 
   const [members, setMembersRaw] = useState([]);
+  const [meals, setMealsRaw] = useState({});
+  const [shoppingList, setShoppingList] = useState(() => {
+    try {
+      const s = localStorage.getItem('tm_shopping');
+      return s ? JSON.parse(s) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [savedWeeks, setSavedWeeks] = useState(() => {
+    try {
+      const s = localStorage.getItem('tm_saved_weeks');
+      return s ? JSON.parse(s) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [recipes, setRecipes] = useState(() => {
+    try {
+      const s = localStorage.getItem('tm_recipes');
+      return s ? JSON.parse(s) : [];
+    } catch {
+      return [];
+    }
+  });
   const [schedule, setSchedule] = useState(() => {
     try {
       const s = localStorage.getItem('tm_schedule');
@@ -37,41 +62,15 @@ function MainApp({ user }) {
     }
   });
 
-  const [meals, setMeals] = useState(() => {
-    try {
-      const s = localStorage.getItem('tm_meals');
-      return s ? JSON.parse(s) : {};
-    } catch {
-      return {};
-    }
-  });
-
-  const [shoppingList, setShoppingList] = useState(() => {
-    try {
-      const s = localStorage.getItem('tm_shopping');
-      return s ? JSON.parse(s) : null;
-    } catch {
-      return null;
-    }
-  });
-
-  const [savedWeeks, setSavedWeeks] = useState(() => {
-    try {
-      const s = localStorage.getItem('tm_saved_weeks');
-      return s ? JSON.parse(s) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const [recipes, setRecipes] = useState(() => {
-    try {
-      const s = localStorage.getItem('tm_recipes');
-      return s ? JSON.parse(s) : [];
-    } catch {
-      return [];
-    }
-  });
+  const weekKey = useMemo(() => {
+    const now = new Date();
+    const start = new Date(now);
+    const day = start.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    start.setDate(start.getDate() + diff);
+    start.setHours(0, 0, 0, 0);
+    return start.toISOString().slice(0, 10);
+  }, []);
 
   useEffect(() => {
     const loadProfiles = async () => {
@@ -94,12 +93,29 @@ function MainApp({ user }) {
   }, [user]);
 
   useEffect(() => {
-    localStorage.setItem('tm_schedule', JSON.stringify(schedule));
-  }, [schedule]);
+    const loadMeals = async () => {
+      const { data, error } = await supabase
+        .from('weekly_meals')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('week_key', weekKey)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error loading meals:', error);
+        setMealsRaw({});
+        return;
+      }
+
+      setMealsRaw(data?.meals || {});
+    };
+
+    loadMeals();
+  }, [user, weekKey]);
 
   useEffect(() => {
-    localStorage.setItem('tm_meals', JSON.stringify(meals));
-  }, [meals]);
+    localStorage.setItem('tm_schedule', JSON.stringify(schedule));
+  }, [schedule]);
 
   useEffect(() => {
     localStorage.setItem('tm_shopping', JSON.stringify(shoppingList));
@@ -121,8 +137,6 @@ function MainApp({ user }) {
 
     setMembersRaw(resolvedMembers);
 
-    // Remove all current profiles for this user, then reinsert fresh.
-    // This is simpler and safer while you're getting the app working.
     const { error: deleteError } = await supabase
       .from('profiles')
       .delete()
@@ -159,6 +173,50 @@ function MainApp({ user }) {
       setProfilesUpdatedAfterMeals(true);
     }
   };
+
+  const setMeals = async (newMealsOrUpdater) => {
+  const resolvedMeals =
+    typeof newMealsOrUpdater === 'function'
+      ? newMealsOrUpdater(meals)
+      : newMealsOrUpdater;
+
+  setMealsRaw(resolvedMeals);
+
+  console.log('Saving meals to Supabase...', {
+    user_id: user.id,
+    week_key: weekKey,
+    meals: resolvedMeals
+  });
+
+  const { error: deleteError } = await supabase
+    .from('weekly_meals')
+    .delete()
+    .eq('user_id', user.id)
+    .eq('week_key', weekKey);
+
+  if (deleteError) {
+    console.error('Error deleting old weekly meals:', deleteError);
+    return;
+  }
+
+  const { data, error: insertError } = await supabase
+    .from('weekly_meals')
+    .insert([
+      {
+        user_id: user.id,
+        week_key: weekKey,
+        meals: resolvedMeals
+      }
+    ])
+    .select();
+
+  if (insertError) {
+    console.error('Error saving meals:', insertError);
+    return;
+  }
+
+  console.log('Meals saved successfully:', data);
+};
 
   const handleShoppingListReady = (list) => {
     setShoppingList(list);
