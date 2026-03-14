@@ -2,7 +2,60 @@ import React, { useState } from 'react';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-const JSON_TEMPLATE = '{"meals":{"Monday":{"name":"","time":"","description":"","modifications":[]},"Tuesday":{"name":"","time":"","description":"","modifications":[]},"Wednesday":{"name":"","time":"","description":"","modifications":[]},"Thursday":{"name":"","time":"","description":"","modifications":[]},"Friday":{"name":"","time":"","description":"","modifications":[]},"Saturday":{"name":"","time":"","description":"","modifications":[]},"Sunday":{"name":"","time":"","description":"","modifications":[]}}}';
+const JSON_TEMPLATE =
+  '{"meals":{"Monday":{"name":"","time":"","description":"","modifications":[]},"Tuesday":{"name":"","time":"","description":"","modifications":[]},"Wednesday":{"name":"","time":"","description":"","modifications":[]},"Thursday":{"name":"","time":"","description":"","modifications":[]},"Friday":{"name":"","time":"","description":"","modifications":[]},"Saturday":{"name":"","time":"","description":"","modifications":[]},"Sunday":{"name":"","time":"","description":"","modifications":[]}}}';
+
+const parseTime = (value) => {
+  if (!value) return null;
+
+  const [hourStr, minuteStr] = value.split(':');
+  const hour = Number(hourStr);
+  const minute = Number(minuteStr);
+
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
+  return hour * 60 + minute;
+};
+
+const getDayPace = (dayData) => {
+  if (!dayData) return 'relaxed';
+
+  // Supports old saved format: "busy"
+  if (typeof dayData === 'string') return dayData;
+
+  // Supports new saved format: { items: [...] }
+  const items = Array.isArray(dayData.items) ? dayData.items : [];
+
+  if (!items.length) return 'relaxed';
+
+  let totalMinutes = 0;
+  let longEventCount = 0;
+
+  for (const item of items) {
+    const start = parseTime(item.start);
+    const end = parseTime(item.end);
+
+    if (start !== null && end !== null && end > start) {
+      const duration = end - start;
+      totalMinutes += duration;
+
+      if (duration >= 120) {
+        longEventCount += 1;
+      }
+    } else {
+      totalMinutes += 45;
+    }
+  }
+
+  if (totalMinutes >= 180 || items.length >= 3 || longEventCount >= 2) {
+    return 'busy';
+  }
+
+  if (totalMinutes >= 60 || items.length >= 2) {
+    return 'moderate';
+  }
+
+  return 'relaxed';
+};
 
 function ThisWeek({
   members,
@@ -82,7 +135,7 @@ function ThisWeek({
 
     try {
       const familyInfo = buildFamilyInfo();
-      const scheduleInfo = DAYS.map((d) => `${d}: ${schedule[d] || 'relaxed'}`).join(', ');
+      const scheduleInfo = DAYS.map((d) => `${d}: ${getDayPace(schedule?.[d])}`).join(', ');
       const existingMealNames = Object.values(meals || {})
         .map((meal) => meal?.name)
         .filter(Boolean)
@@ -101,7 +154,7 @@ function ThisWeek({
 
       const result = await callAI(prompt);
       setMeals(result.meals || {});
-        } catch (err) {
+    } catch (err) {
       console.error('suggestWeek error:', err);
       setError(err.message || 'Something went wrong while planning your week.');
     }
@@ -122,7 +175,7 @@ function ThisWeek({
         .join(', ');
 
       const familyInfo = buildFamilyInfo();
-      const pace = schedule[day] || 'relaxed';
+      const pace = getDayPace(schedule?.[day]);
       const timeLimit =
         pace === 'busy' ? 'under 20 min' : pace === 'moderate' ? 'under 40 min' : 'any length';
 
@@ -343,105 +396,109 @@ function ThisWeek({
 
       {error && <p className="error-text">{error}</p>}
 
-      {DAYS.map((day) => (
-        <div key={day} className="week-meal-card">
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '10px'
-            }}
-          >
-            <div style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a' }}>{day}</div>
+      {DAYS.map((day) => {
+        const dayPace = getDayPace(schedule?.[day]);
 
-            {meals[day] && (
-              <span
-                className="pace-badge"
-                style={{
-                  background: paceBg[schedule[day] || 'relaxed'],
-                  color: paceColor[schedule[day] || 'relaxed']
-                }}
-              >
-                {schedule[day] || 'relaxed'}
-              </span>
-            )}
+        return (
+          <div key={day} className="week-meal-card">
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '10px'
+              }}
+            >
+              <div style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a' }}>{day}</div>
 
-            {meals[day] && (
-              <div style={{ fontSize: '12px', color: '#aaa', fontWeight: '500' }}>
-                {meals[day].time}
-              </div>
-            )}
-          </div>
-
-          {meals[day] ? (
-            <div>
-              <div
-                style={{
-                  fontSize: '15px',
-                  fontWeight: '600',
-                  color: '#1a1a1a',
-                  marginBottom: '10px',
-                  lineHeight: '1.3'
-                }}
-              >
-                {meals[day].name}
-              </div>
-
-              {hasMods(day) ? (
-                <div className="mods-section" style={{ marginBottom: '12px' }}>
-                  <div className="mods-label">modifications</div>
-                  {meals[day].modifications.map((mod, j) =>
-                    mod.person ? (
-                      <div key={j} className="mod-row">
-                        <div className="mod-avatar">{mod.person[0]}</div>
-                        <div className="mod-text">
-                          <strong>{mod.person}</strong> -- {mod.note}
-                        </div>
-                      </div>
-                    ) : null
-                  )}
-                </div>
-              ) : (
-                <div
+              {meals[day] && (
+                <span
+                  className="pace-badge"
                   style={{
-                    fontSize: '12px',
-                    color: '#1D9E75',
-                    background: '#E1F5EE',
-                    borderRadius: '10px',
-                    padding: '8px 12px',
-                    marginBottom: '12px'
+                    background: paceBg[dayPace],
+                    color: paceColor[dayPace]
                   }}
                 >
-                  looks like everyone agrees today, no mods needed!
-                </div>
+                  {dayPace}
+                </span>
               )}
 
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  className="action-btn"
-                  onClick={() => openRecipeModal(day)}
-                  disabled={loadingSteps === day}
-                  style={{ flex: 1 }}
-                >
-                  {loadingSteps === day ? 'loading...' : 'how to cook'}
-                </button>
-
-                <button
-                  className="action-btn swap-btn"
-                  onClick={() => swapMeal(day)}
-                  disabled={swapping === day}
-                  style={{ flex: 1 }}
-                >
-                  {swapping === day ? 'swapping...' : 'swap meal'}
-                </button>
-              </div>
+              {meals[day] && (
+                <div style={{ fontSize: '12px', color: '#aaa', fontWeight: '500' }}>
+                  {meals[day].time}
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="week-meal-empty">{loading ? 'thinking...' : 'not yet planned'}</div>
-          )}
-        </div>
-      ))}
+
+            {meals[day] ? (
+              <div>
+                <div
+                  style={{
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    color: '#1a1a1a',
+                    marginBottom: '10px',
+                    lineHeight: '1.3'
+                  }}
+                >
+                  {meals[day].name}
+                </div>
+
+                {hasMods(day) ? (
+                  <div className="mods-section" style={{ marginBottom: '12px' }}>
+                    <div className="mods-label">modifications</div>
+                    {meals[day].modifications.map((mod, j) =>
+                      mod.person ? (
+                        <div key={j} className="mod-row">
+                          <div className="mod-avatar">{mod.person[0]}</div>
+                          <div className="mod-text">
+                            <strong>{mod.person}</strong> -- {mod.note}
+                          </div>
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: '#1D9E75',
+                      background: '#E1F5EE',
+                      borderRadius: '10px',
+                      padding: '8px 12px',
+                      marginBottom: '12px'
+                    }}
+                  >
+                    looks like everyone agrees today, no mods needed!
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    className="action-btn"
+                    onClick={() => openRecipeModal(day)}
+                    disabled={loadingSteps === day}
+                    style={{ flex: 1 }}
+                  >
+                    {loadingSteps === day ? 'loading...' : 'how to cook'}
+                  </button>
+
+                  <button
+                    className="action-btn swap-btn"
+                    onClick={() => swapMeal(day)}
+                    disabled={swapping === day}
+                    style={{ flex: 1 }}
+                  >
+                    {swapping === day ? 'swapping...' : 'swap meal'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="week-meal-empty">{loading ? 'thinking...' : 'not yet planned'}</div>
+            )}
+          </div>
+        );
+      })}
 
       {Object.keys(meals).length === 7 && !shoppingList && (
         <button

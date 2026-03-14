@@ -225,46 +225,35 @@ function MainApp({ user }) {
   };
 
   const setSchedule = async (newScheduleOrUpdater) => {
-    const resolvedSchedule =
-      typeof newScheduleOrUpdater === 'function'
-        ? newScheduleOrUpdater(schedule)
-        : newScheduleOrUpdater;
+  const resolvedSchedule =
+    typeof newScheduleOrUpdater === 'function'
+      ? newScheduleOrUpdater(schedule)
+      : newScheduleOrUpdater;
 
-    console.log('SET SCHEDULE RAN');
-    console.log('Saving schedule...', resolvedSchedule);
+  setScheduleRaw(resolvedSchedule);
 
-    setScheduleRaw(resolvedSchedule);
-
-    const { error: deleteError } = await supabase
-      .from('schedules')
-      .delete()
-      .eq('user_id', user.id);
-
-    if (deleteError) {
-      console.error('Error deleting old schedule:', deleteError);
-      alert('Delete schedule failed: ' + deleteError.message);
-      return;
-    }
-
-    const { data, error: insertError } = await supabase
-      .from('schedules')
-      .insert([
+  const { data, error } = await supabase
+    .from('schedules')
+    .upsert(
+      [
         {
           user_id: user.id,
           schedule: resolvedSchedule
         }
-      ])
-      .select();
+      ],
+      { onConflict: 'user_id' }
+    )
+    .select();
 
-    if (insertError) {
-      console.error('Error saving schedule:', insertError);
-      alert('Save schedule failed: ' + insertError.message);
-      return;
-    }
+  if (error) {
+    console.error('Error saving schedule:', error);
+    alert('Save schedule failed: ' + error.message);
+    return;
+  }
 
-    console.log('Schedule saved successfully:', data);
-    alert('Schedule saved to Supabase!');
-  };
+  console.log('Schedule saved successfully:', data);
+};
+
 
   const handleShoppingListReady = (list) => {
     setShoppingList(list);
