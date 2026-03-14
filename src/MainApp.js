@@ -225,48 +225,45 @@ function MainApp({ user }) {
   };
 
   const setSchedule = async (newScheduleOrUpdater) => {
-  const resolvedSchedule =
-    typeof newScheduleOrUpdater === 'function'
-      ? newScheduleOrUpdater(schedule)
-      : newScheduleOrUpdater;
+    const resolvedSchedule =
+      typeof newScheduleOrUpdater === 'function'
+        ? newScheduleOrUpdater(schedule)
+        : newScheduleOrUpdater;
 
-  console.log('SET SCHEDULE RAN');
-  console.log('Saving schedule...', resolvedSchedule);
+    console.log('SET SCHEDULE RAN');
+    console.log('Saving schedule...', resolvedSchedule);
 
-  setScheduleRaw(resolvedSchedule);
+    setScheduleRaw(resolvedSchedule);
 
-  const { error: deleteError } = await supabase
-    .from('schedules')
-    .delete()
-    .eq('user_id', user.id);
+    const { error: deleteError } = await supabase
+      .from('schedules')
+      .delete()
+      .eq('user_id', user.id);
 
-  if (deleteError) {
-    console.error('Error deleting old schedule:', deleteError);
-    alert('Delete schedule failed: ' + deleteError.message);
-    return;
-  }
+    if (deleteError) {
+      console.error('Error deleting old schedule:', deleteError);
+      alert('Delete schedule failed: ' + deleteError.message);
+      return;
+    }
 
-  const { data, error: insertError } = await supabase
-    .from('schedules')
-    .insert([
-      {
-        user_id: user.id,
-        schedule: resolvedSchedule
-      }
-    ])
-    .select();
+    const { data, error: insertError } = await supabase
+      .from('schedules')
+      .insert([
+        {
+          user_id: user.id,
+          schedule: resolvedSchedule
+        }
+      ])
+      .select();
 
-  if (insertError) {
-    console.error('Error saving schedule:', insertError);
-    alert('Save schedule failed: ' + insertError.message);
-    return;
-  }
-
-  console.log('Schedule saved successfully:', data);
-  alert('Schedule saved to Supabase!');
-};
+    if (insertError) {
+      console.error('Error saving schedule:', insertError);
+      alert('Save schedule failed: ' + insertError.message);
+      return;
+    }
 
     console.log('Schedule saved successfully:', data);
+    alert('Schedule saved to Supabase!');
   };
 
   const handleShoppingListReady = (list) => {
