@@ -202,6 +202,7 @@ function ThisWeek({
   const [error, setError] = useState(null);
   const [modal, setModal] = useState(null);
   const [loadingSteps, setLoadingSteps] = useState(null);
+  const [showIngredients, setShowIngredients] = useState(false);
 
   const extractJson = (text) => {
     if (!text || typeof text !== 'string') {
@@ -500,43 +501,51 @@ RELAXED DAY MEAL RULES:
   };
 
   const openRecipeModal = async (day) => {
-    setLoadingSteps(day);
-    setError(null);
+  setLoadingSteps(day);
+  setError(null);
 
-    try {
-      const meal = meals[day];
-      const familyInfo = buildFamilyInfo();
+  try {
+    const meal = meals[day];
+    const familyInfo = buildFamilyInfo();
 
-      const prompt =
-        `Give me 6 simple step by step cooking instructions for ${meal.name} for a family. ` +
-        `Family info:\n${familyInfo}\n` +
-        'Keep each step short and clear, one sentence each. ' +
-        'Return ONLY valid JSON: {"steps":["step 1","step 2","step 3","step 4","step 5","step 6"]}';
+    const prompt =
+      `Create a simple family-friendly recipe for this meal: ${meal.name}. ` +
+      (meal.description ? `Meal description: ${meal.description}. ` : '') +
+      `Family info:\n${familyInfo}\n` +
+      'Return ONLY valid JSON in this exact format: ' +
+      '{"ingredients":["ingredient 1","ingredient 2"],"steps":["step 1","step 2","step 3","step 4","step 5","step 6"]}. ' +
+      'Ingredients should be a simple grocery-style list with amounts when possible. ' +
+      'Steps should be short, clear, and easy to follow, one sentence each. ' +
+      'Do not include any extra text outside the JSON.';
 
-      const result = await callAI(prompt);
+    const result = await callAI(prompt);
 
-      const steps = result.steps || [];
-      const stepText = steps.join(' ').toLowerCase();
+    const ingredients = Array.isArray(result.ingredients) ? result.ingredients : [];
+    const steps = Array.isArray(result.steps) ? result.steps : [];
+    const stepText = steps.join(' ').toLowerCase();
 
-      if (
-        (stepText.includes('bake') || stepText.includes('roast')) &&
-        parseMealDurationToMinutes(meal.time) < 30
-      ) {
-        console.warn('AI returned unrealistic oven recipe time:', meal.name, meal.time);
-      }
-
-      setModal({
-        day,
-        meal,
-        steps
-      });
-    } catch (err) {
-      console.error('openRecipeModal error:', err);
-      setError(err.message || 'Could not load recipe. Please try again.');
+    if (
+      (stepText.includes('bake') || stepText.includes('roast')) &&
+      parseMealDurationToMinutes(meal.time) < 30
+    ) {
+      console.warn('AI returned unrealistic oven recipe time:', meal.name, meal.time);
     }
 
-    setLoadingSteps(null);
-  };
+    setShowIngredients(false);
+
+    setModal({
+      day,
+      meal,
+      ingredients,
+      steps
+    });
+  } catch (err) {
+    console.error('openRecipeModal error:', err);
+    setError(err.message || 'Could not load recipe. Please try again.');
+  }
+
+  setLoadingSteps(null);
+};
 
   const keepMeal = async () => {
     if (!modal) return;
@@ -545,62 +554,62 @@ RELAXED DAY MEAL RULES:
 
     const totalMinutes = parseMealDurationToMinutes(modal.meal.time);
 
-    const newRecipe = {
-      id: Date.now(),
-      name: modal.meal.name,
-      time: modal.meal.time,
-      description: modal.meal.description,
-      steps: modal.steps || [],
-      modifications: modal.meal.modifications || [],
-      favorite: false
-    };
+const newRecipe = {
+  id: Date.now(),
+  name: modal.meal.name,
+  time: modal.meal.time,
+  description: modal.meal.description,
+  ingredients: modal.ingredients || [],
+  steps: modal.steps || [],
+  modifications: modal.meal.modifications || [],
+  favorite: false
+};
 
-    try {
-      const { data: existingRecipes, error: existingError } = await supabase
-        .from('recipes')
-        .select('id, name')
-        .eq('name', modal.meal.name);
+try {
+    const { data: existingRecipes, error: existingError } = await supabase
+    .from('recipes')
+    .select('id, name')
+    .eq('name', modal.meal.name);
 
-      if (existingError) {
-        throw existingError;
+  if (existingError) {
+    throw existingError;
+  }
+
+  const alreadyExists = Array.isArray(existingRecipes) && existingRecipes.length > 0;
+
+  if (!alreadyExists) {
+    const { error: insertError } = await supabase.from('recipes').insert([
+      {
+        name: modal.meal.name,
+        description: modal.meal.description || '',
+        prep_minutes: 0,
+        cook_minutes: totalMinutes,
+        time_label: modal.meal.time || '',
+        steps: modal.steps || [],
+        ingredients: modal.ingredients || [],
+        tags: [],
+        dietary_flags: [],
+        source_type: 'ai'
       }
+    ]);
 
-      const alreadyExists = Array.isArray(existingRecipes) && existingRecipes.length > 0;
-
-      if (!alreadyExists) {
-        const { error: insertError } = await supabase.from('recipes').insert([
-          {
-            name: modal.meal.name,
-            description: modal.meal.description || '',
-            prep_minutes: 0,
-            cook_minutes: totalMinutes,
-            time_label: modal.meal.time || '',
-            steps: modal.steps || [],
-            ingredients: [],
-            tags: [],
-            dietary_flags: [],
-            source_type: 'ai'
-          }
-        ]);
-
-        if (insertError) {
-          throw insertError;
-        }
-      }
-
-      setRecipes((prev) => {
-        const existsLocally = prev.some((r) => r.name === modal.meal.name);
-        if (existsLocally) return prev;
-        return [newRecipe, ...prev];
-      });
-
-      setModal(null);
-    } catch (err) {
-      console.error('keepMeal error:', err);
-      setError(err.message || 'Could not save this recipe right now. Please try again.');
+    if (insertError) {
+      throw insertError;
     }
-  };
+  }
 
+  setRecipes((prev) => {
+    const existsLocally = prev.some((r) => r.name === modal.meal.name);
+    if (existsLocally) return prev;
+    return [newRecipe, ...prev];
+  });
+
+  setModal(null);
+} catch (err) {
+  console.error('keepMeal error:', err);
+  setError(err.message || 'Could not save this recipe right now. Please try again.');
+}
+};
   const paceColor = { relaxed: '#1D9E75', moderate: '#BA7517', busy: '#A32D2D' };
   const paceBg = { relaxed: '#E1F5EE', moderate: '#FAEEDA', busy: '#FCEBEB' };
 
@@ -808,35 +817,119 @@ RELAXED DAY MEAL RULES:
         <div className="modal-overlay" onClick={() => setModal(null)}>
           <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="modal-handle"></div>
-            <div className="modal-title">{modal.meal.name}</div>
-            <div className="modal-meta">
-              {modal.meal.time} · {modal.meal.description}
-            </div>
+           <div className="modal-title">{modal.meal.name}</div>
 
-            {modal.meal.modifications &&
-              modal.meal.modifications.length > 0 &&
-              modal.meal.modifications.some((m) => m.person) && (
-                <div className="mods-section" style={{ marginBottom: '1rem' }}>
-                  <div className="mods-label">modifications</div>
-                  {modal.meal.modifications.map((mod, j) =>
-                    mod.person ? (
-                      <div key={j} className="mod-row">
-                        <div className="mod-avatar">{mod.person[0]}</div>
-                        <div className="mod-text">
-                          <strong>{mod.person}</strong> -- {mod.note}
-                        </div>
-                      </div>
-                    ) : null
-                  )}
-                </div>
-              )}
+<div
+  style={{
+    fontSize: '15px',
+    lineHeight: 1.5,
+    color: '#6B7280',
+    marginBottom: '20px'
+  }}
+>
+  <span style={{ color: '#E46A2E', fontWeight: 600 }}>
+    ⏱ {modal.meal.time}
+  </span>
+  {' · '}
+  {modal.meal.description}
+</div>
 
-            {modal.steps.map((step, i) => (
-              <div key={i} className="cook-step">
-                <div className="cook-step-num">{i + 1}</div>
-                <div className="cook-step-text">{step}</div>
-              </div>
-            ))}
+{modal.ingredients?.length > 0 && (
+  <div
+    style={{
+      background: '#F6F8F7',
+      border: '1px solid #E8EFEA',
+      borderRadius: '14px',
+      padding: '14px 16px',
+      marginBottom: '8px'
+    }}
+  >
+    <button
+      type="button"
+      onClick={() => setShowIngredients((prev) => !prev)}
+      style={{
+        width: '100%',
+        background: 'transparent',
+        border: 'none',
+        padding: 0,
+        margin: 0,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        cursor: 'pointer',
+        fontSize: '18px',
+        fontWeight: '600',
+        color: '#1F2937',
+        fontFamily: 'inherit'
+      }}
+    >
+      <span>Ingredients ({modal.ingredients.length})</span>
+
+      <span
+        style={{
+          fontSize: '20px',
+          color: '#E46A2E',
+          fontWeight: '600',
+          lineHeight: 1
+        }}
+      >
+        {showIngredients ? '−' : '+'}
+      </span>
+    </button>
+
+    {showIngredients && (
+      <div style={{ display: 'grid', gap: '10px', marginTop: '14px' }}>
+        {modal.ingredients.map((item, i) => (
+          <div
+            key={i}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+              fontSize: '16px',
+              lineHeight: 1.45,
+              color: '#374151'
+            }}
+          >
+            <div
+              style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '999px',
+                background: '#1D9E75',
+                marginTop: '8px',
+                flexShrink: 0
+              }}
+            />
+            <div>{item}</div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
+
+<h3
+  style={{
+    margin: '28px 0 14px 0',
+    fontSize: '20px',
+    color: '#1F2937',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  }}
+>
+  <span style={{ color: '#E46A2E' }}>🍳</span>
+  How to cook
+</h3>
+
+{modal.steps.map((step, i) => (
+  <div key={i} className="cook-step">
+    <div className="cook-step-num">{i + 1}</div>
+    <div className="cook-step-text">{step}</div>
+  </div>
+))}
+
 
             <div className="modal-actions">
               <button className="modal-keep" onClick={keepMeal}>
