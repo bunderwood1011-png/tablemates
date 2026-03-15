@@ -534,7 +534,11 @@ RELAXED DAY MEAL RULES:
 
     setShoppingLoading(false);
   };
-
+  const clearShoppingList = () => {
+    setShoppingList(null);
+    onShoppingListReady([]);
+    setToast('🧹 Shopping list cleared');
+  };
   const openRecipeModal = async (day) => {
   setLoadingSteps(day);
   setError(null);
@@ -810,16 +814,25 @@ try {
           </div>
         );
       })}
+{Object.keys(meals).length === 7 && (
+  <div style={{ display: 'flex', gap: '8px', marginTop: '1rem', flexWrap: 'wrap' }}>
+    <button
+      className="suggest-btn"
+      onClick={generateShoppingList}
+      disabled={shoppingLoading}
+      style={{ margin: 0, flex: 1 }}
+    >
+      {shoppingLoading
+        ? 'building your list...'
+        : shoppingList
+          ? 'regenerate shopping list'
+          : 'generate shopping list'}
+    </button>
 
-      {Object.keys(meals).length === 7 && !shoppingList && (
-        <button
-          className="suggest-btn"
-          onClick={generateShoppingList}
-          disabled={shoppingLoading}
-          style={{ marginTop: '1rem' }}
-        >
-          {shoppingLoading ? 'building your list...' : 'generate shopping list'}
-        </button>
+    
+  </div>
+)}
+        </div>
       )}
 
       {modal && (
@@ -1065,7 +1078,66 @@ try {
     </div>
   </div>
 )}
-      {loading && (
+{shoppingLoading && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(247,247,245,0.85)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 9998,
+      padding: '24px'
+    }}
+  >
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: '24px',
+        padding: '30px',
+        textAlign: 'center',
+        boxShadow: '0 12px 30px rgba(0,0,0,0.08)',
+        maxWidth: '340px',
+        width: '100%'
+      }}
+    >
+      <div
+        style={{
+          fontSize: '36px',
+          animation: 'forkBounce 1s infinite'
+        }}
+      >
+        🛒
+      </div>
+
+      <div
+        style={{
+          marginTop: '12px',
+          fontSize: '16px',
+          fontWeight: '600',
+          color: '#1a1a1a'
+        }}
+      >
+        🥕 Summoning the grocery gods
+      </div>
+
+      <div
+        style={{
+          marginTop: '8px',
+          fontSize: '13px',
+          color: '#777',
+          lineHeight: '1.5'
+        }}
+      >
+        they're arguing about how many onions you actually need…
+      </div>
+    </div>
+  </div>
+)}
+
+{loading && (
+    
         <div
           style={{
             position: 'fixed',
