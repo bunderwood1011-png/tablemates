@@ -661,7 +661,7 @@ try {
     );
   };
 
-    return (
+      return (
     <div>
       <div style={{ display: 'flex', gap: '8px', marginBottom: '1rem', flexWrap: 'wrap' }}>
         {Object.keys(meals).length === 0 ? (
@@ -707,7 +707,7 @@ try {
 
       {error && <p className="error-text">{error}</p>}
 
-            {DAYS.map((day) => {
+      {DAYS.map((day) => {
         const dayPace = getDayPace(schedule?.[day]);
 
         return (
@@ -814,152 +814,154 @@ try {
           </div>
         );
       })}
-{Object.keys(meals).length === 7 && (
-  <div style={{ display: 'flex', gap: '8px', marginTop: '1rem', flexWrap: 'wrap' }}>
-    <button
-      className="suggest-btn"
-      onClick={generateShoppingList}
-      disabled={shoppingLoading}
-      style={{ margin: 0, flex: 1 }}
-    >
-      {shoppingLoading
-        ? 'building your list...'
-        : shoppingList
-          ? 'regenerate shopping list'
-          : 'generate shopping list'}
-    </button>
 
-    
-  </div>
-)}
+      {Object.keys(meals || {}).length === 7 && !shoppingList && (
+        <div
+          style={{
+            position: 'sticky',
+            bottom: '16px',
+            marginTop: '20px',
+            paddingTop: '12px',
+            background: 'linear-gradient(to top, #f7f7f5 60%, transparent)'
+          }}
+        >
+          <button
+            className="suggest-btn"
+            onClick={generateShoppingList}
+            disabled={shoppingLoading}
+            style={{
+              width: '100%',
+              maxWidth: '420px',
+              margin: '0 auto',
+              display: 'block'
+            }}
+          >
+            {shoppingLoading ? 'building your list...' : 'generate shopping list'}
+          </button>
         </div>
       )}
 
       {modal && (
         <div className="modal-overlay" onClick={() => setModal(null)}>
-          <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-sheet recipe-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-handle"></div>
-           <div className="modal-title">{modal.meal.name}</div>
 
-<div
-  style={{
-    fontSize: '15px',
-    lineHeight: 1.5,
-    color: '#6B7280',
-    marginBottom: '20px'
-  }}
->
-  <span style={{ color: '#E46A2E', fontWeight: 600 }}>
-    ⏱ {modal.meal.time}
-  </span>
-  {' · '}
-  {modal.meal.description}
-</div>
+            <div className="modal-title">{modal.meal.name}</div>
 
-{modal.ingredients?.length > 0 && (
-  <div
-    style={{
-      background: '#F6F8F7',
-      border: '1px solid #E8EFEA',
-      borderRadius: '14px',
-      padding: '14px 16px',
-      marginBottom: '8px'
-    }}
-  >
-    <button
-      type="button"
-      onClick={() => setShowIngredients((prev) => !prev)}
-      style={{
-        width: '100%',
-        background: 'transparent',
-        border: 'none',
-        padding: 0,
-        margin: 0,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        cursor: 'pointer',
-        fontSize: '18px',
-        fontWeight: '600',
-        color: '#1F2937',
-        fontFamily: 'inherit'
-      }}
-    >
-      <span>Ingredients ({modal.ingredients.length})</span>
-
-      <span
-        style={{
-          fontSize: '20px',
-          color: '#E46A2E',
-          fontWeight: '600',
-          lineHeight: 1
-        }}
-      >
-        {showIngredients ? '−' : '+'}
-      </span>
-    </button>
-
-    {showIngredients && (
-      <div style={{ display: 'grid', gap: '10px', marginTop: '14px' }}>
-        {modal.ingredients.map((item, i) => (
-          <div
-            key={i}
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '10px',
-              fontSize: '16px',
-              lineHeight: 1.45,
-              color: '#374151'
-            }}
-          >
             <div
               style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '999px',
-                background: '#1D9E75',
-                marginTop: '8px',
-                flexShrink: 0
+                fontSize: '15px',
+                lineHeight: 1.5,
+                color: '#6B7280',
+                marginBottom: '20px'
               }}
-            />
-            <div>{item}</div>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-)}
+            >
+              <span style={{ color: '#E46A2E', fontWeight: 600 }}>⏱ {modal.meal.time}</span>
+              {' · '}
+              {modal.meal.description}
+            </div>
 
-<h3
-  style={{
-    margin: '28px 0 14px 0',
-    fontSize: '20px',
-    color: '#1F2937',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px'
-  }}
->
-  <span style={{ color: '#E46A2E' }}>🍳</span>
-  How to cook
-</h3>
+            {modal.ingredients?.length > 0 && (
+              <div
+                style={{
+                  background: '#F6F8F7',
+                  border: '1px solid #E8EFEA',
+                  borderRadius: '14px',
+                  padding: '14px 16px',
+                  marginBottom: '8px'
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowIngredients((prev) => !prev)}
+                  style={{
+                    width: '100%',
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 0,
+                    margin: 0,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    fontSize: '18px',
+                    fontWeight: '600',
+                    color: '#1F2937',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  <span>Ingredients ({modal.ingredients.length})</span>
 
-{modal.steps.map((step, i) => (
-  <div key={i} className="cook-step">
-    <div className="cook-step-num">{i + 1}</div>
-    <div className="cook-step-text">{step}</div>
-  </div>
-))}
+                  <span
+                    style={{
+                      fontSize: '20px',
+                      color: '#E46A2E',
+                      fontWeight: '600',
+                      lineHeight: 1
+                    }}
+                  >
+                    {showIngredients ? '−' : '+'}
+                  </span>
+                </button>
+
+                {showIngredients && (
+                  <div style={{ display: 'grid', gap: '10px', marginTop: '14px' }}>
+                    {modal.ingredients.map((item, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '10px',
+                          fontSize: '16px',
+                          lineHeight: 1.45,
+                          color: '#374151'
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '999px',
+                            background: '#1D9E75',
+                            marginTop: '8px',
+                            flexShrink: 0
+                          }}
+                        />
+                        <div>{item}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <h3
+              style={{
+                margin: '28px 0 14px 0',
+                fontSize: '20px',
+                color: '#1F2937',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <span style={{ color: '#E46A2E' }}>🍳</span>
+              How to cook
+            </h3>
+
+            {modal.steps.map((step, i) => (
+              <div key={i} className="cook-step">
+                <div className="cook-step-num">{i + 1}</div>
+                <div className="cook-step-text">{step}</div>
+              </div>
+            ))}
+
             <div className="modal-actions">
               <button className="modal-keep" onClick={keepMeal}>
                 Keep this meal
               </button>
-
-              <button
-                className="modal-swap"
-                onClick={() => swapMeal(modal.day)}
-              >
+              <button className="modal-swap" onClick={() => swapMeal(modal.day)}>
                 Swap meal
               </button>
             </div>
@@ -968,10 +970,7 @@ try {
       )}
 
       {showProfileUpdatePrompt && (
-        <div
-          className="modal-overlay"
-          onClick={() => setShowProfileUpdatePrompt(false)}
-        >
+        <div className="modal-overlay" onClick={() => setShowProfileUpdatePrompt(false)}>
           <div
             className="modal-sheet"
             onClick={(e) => e.stopPropagation()}
@@ -1007,7 +1006,7 @@ try {
                 onClick={refreshAllMods}
                 style={{ flex: 1 }}
               >
-                Check mods
+                {swapping === 'all_mods' ? 'checking...' : 'Check mods'}
               </button>
 
               <button
@@ -1021,123 +1020,66 @@ try {
           </div>
         </div>
       )}
-{swapping === 'all_mods' && (
-  <div
-    style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(247,247,245,0.85)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 9998,
-      padding: '24px'
-    }}
-  >
-    <div
-      style={{
-        background: '#fff',
-        borderRadius: '24px',
-        padding: '30px',
-        textAlign: 'center',
-        boxShadow: '0 12px 30px rgba(0,0,0,0.08)',
-        maxWidth: '340px',
-        width: '100%'
-      }}
-    >
-      <div
-        style={{
-          fontSize: '36px',
-          animation: 'forkBounce 1s infinite'
-        }}
-      >
-        🔍
-      </div>
 
-      <div
-        style={{
-          marginTop: '12px',
-          fontSize: '16px',
-          fontWeight: '600',
-          color: '#1a1a1a'
-        }}
-      >
-        Checking everyone's plates
-      </div>
+      {shoppingLoading && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(247,247,245,0.85)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9998,
+            padding: '24px'
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '24px',
+              padding: '30px',
+              textAlign: 'center',
+              boxShadow: '0 12px 30px rgba(0,0,0,0.08)',
+              maxWidth: '340px',
+              width: '100%'
+            }}
+          >
+            <div
+              style={{
+                fontSize: '36px',
+                animation: 'forkBounce 1s infinite'
+              }}
+            >
+              🛒
+            </div>
 
-      <div
-        style={{
-          marginTop: '8px',
-          fontSize: '13px',
-          color: '#777',
-          lineHeight: '1.5'
-        }}
-      >
-        making sure tonight works for the whole table...
-      </div>
-    </div>
-  </div>
-)}
-{shoppingLoading && (
-  <div
-    style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(247,247,245,0.85)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 9998,
-      padding: '24px'
-    }}
-  >
-    <div
-      style={{
-        background: '#fff',
-        borderRadius: '24px',
-        padding: '30px',
-        textAlign: 'center',
-        boxShadow: '0 12px 30px rgba(0,0,0,0.08)',
-        maxWidth: '340px',
-        width: '100%'
-      }}
-    >
-      <div
-        style={{
-          fontSize: '36px',
-          animation: 'forkBounce 1s infinite'
-        }}
-      >
-        🛒
-      </div>
+            <div
+              style={{
+                marginTop: '12px',
+                fontSize: '16px',
+                fontWeight: '600',
+                color: '#1a1a1a'
+              }}
+            >
+              🥕 Summoning the grocery gods
+            </div>
 
-      <div
-        style={{
-          marginTop: '12px',
-          fontSize: '16px',
-          fontWeight: '600',
-          color: '#1a1a1a'
-        }}
-      >
-        🥕 Summoning the grocery gods
-      </div>
+            <div
+              style={{
+                marginTop: '8px',
+                fontSize: '13px',
+                color: '#777',
+                lineHeight: '1.5'
+              }}
+            >
+              they&apos;re arguing about how many onions you actually need…
+            </div>
+          </div>
+        </div>
+      )}
 
-      <div
-        style={{
-          marginTop: '8px',
-          fontSize: '13px',
-          color: '#777',
-          lineHeight: '1.5'
-        }}
-      >
-        they're arguing about how many onions you actually need…
-      </div>
-    </div>
-  </div>
-)}
-
-{loading && (
-    
+      {loading && (
         <div
           style={{
             position: 'fixed',
@@ -1202,6 +1144,27 @@ try {
               }
             `}
           </style>
+        </div>
+      )}
+
+      {toast && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#1F2937',
+            color: '#fff',
+            padding: '12px 16px',
+            borderRadius: '999px',
+            fontSize: '14px',
+            fontWeight: '500',
+            boxShadow: '0 10px 24px rgba(0,0,0,0.16)',
+            zIndex: 10001
+          }}
+        >
+          {toast}
         </div>
       )}
     </div>
