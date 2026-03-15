@@ -533,11 +533,7 @@ RELAXED DAY MEAL RULES:
     }
 
     setShoppingLoading(false);
-  };
-  const clearShoppingList = () => {
-    setShoppingList(null);
-    onShoppingListReady([]);
-    setToast('🧹 Shopping list cleared');
+
   };
   const openRecipeModal = async (day) => {
   setLoadingSteps(day);
