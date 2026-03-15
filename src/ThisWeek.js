@@ -27,31 +27,37 @@ const parseMealDurationToMinutes = (value) => {
   const hourMatch = lower.match(/(\d+)\s*(hr|hrs|hour|hours)/);
   const minuteMatch = lower.match(/(\d+)\s*(min|mins|minute|minutes)/);
 
-  if (hourMatch) {
-    total += Number(hourMatch[1]) * 60;
-  }
-
-  if (minuteMatch) {
-    total += Number(minuteMatch[1]);
-  }
+  if (hourMatch) total += Number(hourMatch[1]) * 60;
+  if (minuteMatch) total += Number(minuteMatch[1]);
 
   if (!hourMatch && !minuteMatch) {
     const plainNumber = lower.match(/\d+/);
-    if (plainNumber) {
-      total = Number(plainNumber[0]);
-    }
+    if (plainNumber) total = Number(plainNumber[0]);
   }
 
   return Number.isNaN(total) ? 0 : total;
 };
 
+const getMaxMinutesForPace = (pace) => {
+  if (pace === 'busy') return 30;
+  if (pace === 'moderate') return 60;
+  return Infinity;
+};
+
+const mealFitsPace = (meal, pace) => {
+  if (!meal || !meal.time) return false;
+
+  const totalMinutes = parseMealDurationToMinutes(meal.time);
+  const maxMinutes = getMaxMinutesForPace(pace);
+
+  return totalMinutes > 0 && totalMinutes <= maxMinutes;
+};
+
 const getDayPace = (dayData) => {
   if (!dayData) return 'relaxed';
-
   if (typeof dayData === 'string') return dayData;
 
   const items = Array.isArray(dayData.items) ? dayData.items : [];
-
   if (!items.length) return 'relaxed';
 
   let totalMinutes = 0;
@@ -73,14 +79,8 @@ const getDayPace = (dayData) => {
     }
   }
 
-  if (totalMinutes >= 180 || items.length >= 3 || longEventCount >= 2) {
-    return 'busy';
-  }
-
-  if (totalMinutes >= 60 || items.length >= 2) {
-    return 'moderate';
-  }
-
+  if (totalMinutes >= 180 || items.length >= 3 || longEventCount >= 2) return 'busy';
+  if (totalMinutes >= 60 || items.length >= 2) return 'moderate';
   return 'relaxed';
 };
 
@@ -162,6 +162,50 @@ function ThisWeek({
       .join('\n');
   };
 
+  const regenerateMealForDay = async (day, existingMeals) => {
+    const familyInfo = buildFamilyInfo();
+    const pace = getDayPace(schedule?.[day]);
+    const maxMinutes = getMaxMinutesForPace(pace);
+
+    const otherMealNames = DAYS.filter((d) => d !== day)
+      .map((d) => existingMeals[d]?.name)
+      .filter(Boolean)
+      .join(', ');
+
+    const prompt =
+      `Suggest one dinner for ${day} night. ` +
+      `This is a ${pace} day. ` +
+      (maxMinutes === Infinity
+        ? 'Time limit: any length is allowed, but keep it practical. '
+        : `Time limit: ${maxMinutes} minutes or less total, including prep and cook time. `) +
+      'The time must equal the REAL total cooking time including prep and cook time. ' +
+      'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
+      'Do NOT return times under the real cooking time. ' +
+      'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
+      'Do not label oven meals as 20 minutes or less. ' +
+      'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
+      `Family:\n${familyInfo}\n` +
+      (otherMealNames ? `Do NOT repeat these meals already in the week: ${otherMealNames}. ` : '') +
+      'Return ONLY valid JSON: {"name":"","time":"","description":"","modifications":[]}';
+
+    return await callAI(prompt);
+  };
+
+  const validateAndFixMeals = async (generatedMeals) => {
+    const fixedMeals = { ...generatedMeals };
+
+    for (const day of DAYS) {
+      const pace = getDayPace(schedule?.[day]);
+      const meal = fixedMeals[day];
+
+      if (!mealFitsPace(meal, pace)) {
+        fixedMeals[day] = await regenerateMealForDay(day, fixedMeals);
+      }
+    }
+
+    return fixedMeals;
+  };
+
   const suggestWeek = async () => {
     setLoading(true);
     setError(null);
@@ -178,8 +222,12 @@ function ThisWeek({
 
       const prompt =
         'You are a family meal planner. Suggest one dinner per night for a week. ' +
-        'Busy nights need meals under 20 min, moderate nights under 40 min, relaxed nights can be any length. ' +
-        'The meal time must represent TOTAL time including prep and cook time. ' +
+        'Busy nights need meals 30 min or less, moderate nights 60 min or less, relaxed nights can be any length. ' +
+        'The time must equal the REAL total cooking time including prep and cook time. ' +
+        'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
+        'Do NOT return times under the real cooking time. ' +
+        'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
+        'Do not label oven meals as 20 minutes or less. ' +
         'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
         'Do not repeat meals within the same week. ' +
         (existingMealNames ? `Avoid repeating these previously suggested meals if possible: ${existingMealNames}. ` : '') +
@@ -189,10 +237,13 @@ function ThisWeek({
         JSON_TEMPLATE;
 
       const result = await callAI(prompt);
-      setMeals(result.meals || {});
+      const generatedMeals = result.meals || {};
+      const validatedMeals = await validateAndFixMeals(generatedMeals);
+
+      setMeals(validatedMeals);
     } catch (err) {
       console.error('suggestWeek error:', err);
-      setError(err.message || 'Something went wrong while planning your week.');
+      setError(err.message || 'Could not generate meals. Please try again.');
     }
 
     setLoading(false);
@@ -212,13 +263,22 @@ function ThisWeek({
 
       const familyInfo = buildFamilyInfo();
       const pace = getDayPace(schedule?.[day]);
+      const maxMinutes = getMaxMinutesForPace(pace);
+
       const timeLimit =
-        pace === 'busy' ? 'under 20 min' : pace === 'moderate' ? 'under 40 min' : 'any length';
+        maxMinutes === Infinity
+          ? 'any length'
+          : `${maxMinutes} minutes or less total, including prep and cook time`;
 
       const prompt =
         `Suggest one dinner for ${day} night. ` +
+        `This is a ${pace} day. ` +
         `Time limit: ${timeLimit}. ` +
-        'The meal time must represent TOTAL time including prep and cook time. ' +
+        'The time must equal the REAL total cooking time including prep and cook time. ' +
+        'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
+        'Do NOT return times under the real cooking time. ' +
+        'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
+        'Do not label oven meals as 20 minutes or less. ' +
         'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
         `Family:\n${familyInfo}\n` +
         (current ? `Do NOT suggest this current meal: ${current}. ` : '') +
@@ -226,6 +286,11 @@ function ThisWeek({
         'Return ONLY valid JSON: {"name":"","time":"","description":"","modifications":[]}';
 
       const result = await callAI(prompt);
+
+      if (!mealFitsPace(result, pace)) {
+        throw new Error(`That swap did not fit the ${pace} time limit. Please try again.`);
+      }
+
       setMeals((prev) => ({ ...prev, [day]: result }));
     } catch (err) {
       console.error('swapMeal error:', err);
@@ -310,10 +375,20 @@ function ThisWeek({
 
       const result = await callAI(prompt);
 
+      const steps = result.steps || [];
+      const stepText = steps.join(' ').toLowerCase();
+
+      if (
+        (stepText.includes('bake') || stepText.includes('roast')) &&
+        parseMealDurationToMinutes(meal.time) < 30
+      ) {
+        console.warn('AI returned unrealistic oven recipe time:', meal.name, meal.time);
+      }
+
       setModal({
         day,
         meal,
-        steps: result.steps || []
+        steps
       });
     } catch (err) {
       console.error('openRecipeModal error:', err);
@@ -324,12 +399,7 @@ function ThisWeek({
   };
 
   const keepMeal = async () => {
-    console.log('keepMeal clicked');
-
-    if (!modal) {
-      console.log('No modal found');
-      return;
-    }
+    if (!modal) return;
 
     setError(null);
 
@@ -351,9 +421,6 @@ function ThisWeek({
         .select('id, name')
         .eq('name', modal.meal.name);
 
-      console.log('existingRecipes:', existingRecipes);
-      console.log('existingError:', existingError);
-
       if (existingError) {
         throw existingError;
       }
@@ -361,26 +428,20 @@ function ThisWeek({
       const alreadyExists = Array.isArray(existingRecipes) && existingRecipes.length > 0;
 
       if (!alreadyExists) {
-        const { data: insertedRecipe, error: insertError } = await supabase
-          .from('recipes')
-          .insert([
-            {
-              name: modal.meal.name,
-              description: modal.meal.description || '',
-              prep_minutes: 0,
-              cook_minutes: totalMinutes,
-              time_label: modal.meal.time || '',
-              steps: modal.steps || [],
-              ingredients: [],
-              tags: [],
-              dietary_flags: [],
-              source_type: 'ai'
-            }
-          ])
-          .select();
-
-        console.log('insertedRecipe:', insertedRecipe);
-        console.log('insertError:', insertError);
+        const { error: insertError } = await supabase.from('recipes').insert([
+          {
+            name: modal.meal.name,
+            description: modal.meal.description || '',
+            prep_minutes: 0,
+            cook_minutes: totalMinutes,
+            time_label: modal.meal.time || '',
+            steps: modal.steps || [],
+            ingredients: [],
+            tags: [],
+            dietary_flags: [],
+            source_type: 'ai'
+          }
+        ]);
 
         if (insertError) {
           throw insertError;
@@ -658,7 +719,8 @@ function ThisWeek({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 9999
+            zIndex: 9999,
+            padding: '24px'
           }}
         >
           <div
@@ -667,7 +729,9 @@ function ThisWeek({
               borderRadius: '24px',
               padding: '30px',
               textAlign: 'center',
-              boxShadow: '0 12px 30px rgba(0,0,0,0.08)'
+              boxShadow: '0 12px 30px rgba(0,0,0,0.08)',
+              maxWidth: '340px',
+              width: '100%'
             }}
           >
             <div
@@ -683,17 +747,29 @@ function ThisWeek({
               style={{
                 marginTop: '12px',
                 fontSize: '16px',
-                fontWeight: '600'
+                fontWeight: '600',
+                color: '#1a1a1a'
               }}
             >
-              hold on, looking for my favorite fork
+              Searching through my grandma’s recipe box
+            </div>
+
+            <div
+              style={{
+                marginTop: '8px',
+                fontSize: '13px',
+                color: '#777',
+                lineHeight: '1.5'
+              }}
+            >
+              finding something good for this week...
             </div>
           </div>
 
           <style>
             {`
               @keyframes forkBounce {
-                0%,100% { transform: translateY(0); }
+                0%, 100% { transform: translateY(0); }
                 40% { transform: translateY(-10px); }
                 60% { transform: translateY(0); }
               }
