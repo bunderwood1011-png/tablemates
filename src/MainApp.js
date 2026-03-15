@@ -49,14 +49,8 @@ function MainApp({ user }) {
     }
   });
 
-  const [recipes, setRecipes] = useState(() => {
-    try {
-      const s = localStorage.getItem('tm_recipes');
-      return s ? JSON.parse(s) : [];
-    } catch {
-      return [];
-    }
-  });
+ const [recipes, setRecipes] = useState([]);
+ 
 
   const weekKey = useMemo(() => {
     const now = new Date();
@@ -138,8 +132,23 @@ function MainApp({ user }) {
   }, [savedWeeks]);
 
   useEffect(() => {
-    localStorage.setItem('tm_recipes', JSON.stringify(recipes));
-  }, [recipes]);
+  const loadRecipes = async () => {
+    const { data, error } = await supabase
+      .from('recipes')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error loading recipes:', error);
+      setRecipes([]);
+      return;
+    }
+
+    setRecipes(data || []);
+  };
+
+  loadRecipes();
+}, []);
 
   const setMembers = async (newMembersOrUpdater) => {
     const resolvedMembers =
