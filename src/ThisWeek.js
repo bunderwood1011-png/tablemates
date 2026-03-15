@@ -17,20 +17,28 @@ const parseTime = (value) => {
   return hour * 60 + minute;
 };
 
-const parseMealDurationToMinutes = (value) => {
+ const parseMealDurationToMinutes = (value) => {
   if (!value || typeof value !== 'string') return 0;
 
   const lower = value.toLowerCase().trim();
 
+  // Handle ranges like "45-50 min" or "45–50 min"
+  const rangeMatch = lower.match(/(\d+)\s*[-–]\s*(\d+)/);
+  if (rangeMatch) {
+    return Number(rangeMatch[2]);
+  }
+
   let total = 0;
 
-  const hourMatch = lower.match(/(\d+)\s*(hr|hrs|hour|hours)/);
+  // Handle decimal hours like "2.5 hours"
+  const decimalHourMatch = lower.match(/(\d+(?:\.\d+)?)\s*(hr|hrs|hour|hours)/);
   const minuteMatch = lower.match(/(\d+)\s*(min|mins|minute|minutes)/);
 
-  if (hourMatch) total += Number(hourMatch[1]) * 60;
+  if (decimalHourMatch) total += Math.round(Number(decimalHourMatch[1]) * 60);
   if (minuteMatch) total += Number(minuteMatch[1]);
 
-  if (!hourMatch && !minuteMatch) {
+  // Handle plain numbers like "30"
+  if (!decimalHourMatch && !minuteMatch) {
     const plainNumber = lower.match(/\d+/);
     if (plainNumber) total = Number(plainNumber[0]);
   }
@@ -43,16 +51,107 @@ const getMaxMinutesForPace = (pace) => {
   if (pace === 'moderate') return 60;
   return Infinity;
 };
+const getMealTimeFloor = (meal) => {
+  const text = `${meal?.name || ''} ${meal?.description || ''}`.toLowerCase();
 
-const mealFitsPace = (meal, pace) => {
-  if (!meal || !meal.time) return false;
+  const hasAny = (keywords) => keywords.some((word) => text.includes(word));
 
-  const totalMinutes = parseMealDurationToMinutes(meal.time);
-  const maxMinutes = getMaxMinutesForPace(pace);
+  // Very slow meals
+  if (
+    hasAny([
+      'pot roast',
+      'brisket',
+      'short ribs',
+      'whole chicken',
+      'slow cooker',
+      'crockpot',
+      'crock pot',
+      'braised',
+      'dutch oven',
+      'ribs'
+    ])
+  ) {
+    return 90;
+  }
 
-  return totalMinutes > 0 && totalMinutes <= maxMinutes;
+  // Slow meals
+  if (
+    hasAny([
+      'lasagna',
+      'meatloaf',
+      'casserole',
+      'pot pie',
+      'stuffed peppers',
+      'stuffed shells'
+    ])
+  ) {
+    return 60;
+  }
+
+  // Medium-slow meals
+  if (
+    hasAny([
+      'sheet pan',
+      'baked',
+      'roasted',
+      'oven roasted',
+      'gratin',
+      'enchiladas'
+    ])
+  ) {
+    return 40;
+  }
+
+  // Medium meals
+  if (
+    hasAny([
+      'pasta',
+      'alfredo',
+      'spaghetti',
+      'burger',
+      'burgers',
+      'skillet',
+      'stir fry',
+      'rice bowl',
+      'grain bowl',
+      'soup'
+    ])
+  ) {
+    return 25;
+  }
+
+  // Faster meals
+  if (
+    hasAny([
+      'taco',
+      'tacos',
+      'quesadilla',
+      'wrap',
+      'sandwich',
+      'sliders',
+      'salad',
+      'flatbread',
+      'scramble'
+    ])
+  ) {
+    return 20;
+  }
+
+  return 30;
 };
 
+const getEffectiveMealMinutes = (meal) => {
+  const parsedMinutes = parseMealDurationToMinutes(meal?.time);
+  const floorMinutes = getMealTimeFloor(meal);
+
+  return Math.max(parsedMinutes || 0, floorMinutes);
+};
+const mealFitsPace = (meal, pace) => {
+  const maxMinutes = getMaxMinutesForPace(pace);
+  const effectiveMinutes = getEffectiveMealMinutes(meal);
+
+  return effectiveMinutes <= maxMinutes;
+};
 const getDayPace = (dayData) => {
   if (!dayData) return 'relaxed';
   if (typeof dayData === 'string') return dayData;
@@ -205,36 +304,75 @@ function ThisWeek({
 
     return fixedMeals;
   };
+const getPaceMealRules = (pace) => {
+  if (pace === 'busy') {
+    return `
+BUSY DAY MEAL RULES:
+- Choose dinners that realistically take 30 minutes or less of active cooking time.
+- Prioritize tacos, quesadillas, wraps, sandwiches, burgers, skillet meals, stir-fry, quick pasta, rice bowls, soups, salads, and flatbreads.
+- Air fryer meals are excellent choices for busy nights.
+- Slow cooker meals are allowed if prep takes about 10 minutes or less and the meal cooks while the family is busy.
+- Focus on meals that minimize hands-on cooking and cleanup.
 
+Avoid:
+- Long oven-baked meals
+- Roasted dinners
+- Casseroles or lasagna
+- Sheet pan dinners with long bake times
+- Recipes requiring long marinating, breading and baking, or extended simmering.
+`;
+  }
+
+  if (pace === 'moderate') {
+    return `
+MODERATE DAY MEAL RULES:
+- Choose dinners that realistically take 60 minutes or less total.
+- Moderate-effort meals are okay, including pasta, burgers with sides, skillet meals, protein + side dinners, enchiladas, and simple oven meals.
+- Avoid very long roasts, brisket, pot roast, or anything that takes more than 60 minutes total.
+- Keep meals practical for a normal weeknight.
+`;
+  }
+
+  return `
+RELAXED DAY MEAL RULES:
+- Longer and more involved meals are welcome.
+- Roasts, casseroles, baked dishes, comfort meals, and slow-cooked meals are all acceptable.
+- Keep meals realistic and family-friendly.
+`;
+};
   const suggestWeek = async () => {
-    setLoading(true);
-    setError(null);
-    setShoppingList(null);
-    onMealsRegenerated();
+  setLoading(true);
+  setError(null);
+  setShoppingList(null);
+  onMealsRegenerated();
 
-    try {
-      const familyInfo = buildFamilyInfo();
-      const scheduleInfo = DAYS.map((d) => `${d}: ${getDayPace(schedule?.[d])}`).join(', ');
-      const existingMealNames = Object.values(meals || {})
-        .map((meal) => meal?.name)
-        .filter(Boolean)
-        .join(', ');
+  try {
+    const familyInfo = buildFamilyInfo();
+    const scheduleInfo = DAYS.map((d) => {
+      const pace = getDayPace(schedule?.[d]);
+      return `${d}: ${pace}\n${getPaceMealRules(pace)}`;
+    }).join('\n\n');
 
-      const prompt =
-        'You are a family meal planner. Suggest one dinner per night for a week. ' +
-        'Busy nights need meals 30 min or less, moderate nights 60 min or less, relaxed nights can be any length. ' +
-        'The time must equal the REAL total cooking time including prep and cook time. ' +
-        'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
-        'Do NOT return times under the real cooking time. ' +
-        'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
-        'Do not label oven meals as 20 minutes or less. ' +
-        'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
-        'Do not repeat meals within the same week. ' +
-        (existingMealNames ? `Avoid repeating these previously suggested meals if possible: ${existingMealNames}. ` : '') +
-        `Family:\n${familyInfo}\n` +
-        `Schedule: ${scheduleInfo}. ` +
-        'Return ONLY valid JSON matching this template, and fill in every field exactly: ' +
-        JSON_TEMPLATE;
+    const existingMealNames = Object.values(meals || {})
+      .map((meal) => meal?.name)
+      .filter(Boolean)
+      .join(', ');
+
+    const prompt =
+      'You are a family meal planner. Suggest one dinner per night for a week. ' +
+      'Busy nights need meals 30 min or less, moderate nights 60 min or less, relaxed nights can be any length. ' +
+      'The time must equal the REAL total cooking time including prep and cook time. ' +
+      'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
+      'Do NOT return times under the real cooking time. ' +
+      'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
+      'Do not label oven meals as 20 minutes or less. ' +
+      'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
+      'Do not repeat meals within the same week. ' +
+      (existingMealNames ? `Avoid repeating these previously suggested meals if possible: ${existingMealNames}. ` : '') +
+      `Family:\n${familyInfo}\n` +
+      `Schedule and pace rules:\n${scheduleInfo}\n` +
+      'Return ONLY valid JSON matching this template, and fill in every field exactly: ' +
+      JSON_TEMPLATE;
 
       const result = await callAI(prompt);
       const generatedMeals = result.meals || {};
@@ -262,8 +400,9 @@ function ThisWeek({
         .join(', ');
 
       const familyInfo = buildFamilyInfo();
-      const pace = getDayPace(schedule?.[day]);
-      const maxMinutes = getMaxMinutesForPace(pace);
+const pace = getDayPace(schedule?.[day]);
+const maxMinutes = getMaxMinutesForPace(pace);
+const paceRules = getPaceMealRules(pace);
 
       const timeLimit =
         maxMinutes === Infinity
@@ -271,19 +410,21 @@ function ThisWeek({
           : `${maxMinutes} minutes or less total, including prep and cook time`;
 
       const prompt =
-        `Suggest one dinner for ${day} night. ` +
-        `This is a ${pace} day. ` +
-        `Time limit: ${timeLimit}. ` +
-        'The time must equal the REAL total cooking time including prep and cook time. ' +
-        'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
-        'Do NOT return times under the real cooking time. ' +
-        'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
-        'Do not label oven meals as 20 minutes or less. ' +
-        'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
-        `Family:\n${familyInfo}\n` +
-        (current ? `Do NOT suggest this current meal: ${current}. ` : '') +
-        (otherMealNames ? `Do NOT repeat these meals already in the week: ${otherMealNames}. ` : '') +
-        'Return ONLY valid JSON: {"name":"","time":"","description":"","modifications":[]}';
+  `Suggest one dinner for ${day} night. ` +
+  `This is a ${pace} day. ` +
+  `${paceRules}\n` +
+  (maxMinutes === Infinity
+    ? 'Time limit: any length is allowed, but keep it practical. '
+    : `Time limit: ${maxMinutes} minutes or less total, including prep and cook time. `) +
+  'The time must equal the REAL total cooking time including prep and cook time. ' +
+  'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
+  'Do NOT return times under the real cooking time. ' +
+  'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
+  'Do not label oven meals as 20 minutes or less. ' +
+  'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
+  `Family:\n${familyInfo}\n` +
+  (otherMealNames ? `Do NOT repeat these meals already in the week: ${otherMealNames}. ` : '') +
+  'Return ONLY valid JSON: {"name":"","time":"","description":"","modifications":[]}';
 
       const result = await callAI(prompt);
 
