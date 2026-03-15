@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -193,9 +193,10 @@ function ThisWeek({
   recipes,
   setRecipes,
   profilesUpdatedAfterMeals,
-  onMealsRegenerated
+  onMealsRegenerated,
+  changedProfileNames = []
 }) {
-  const [shoppingList, setShoppingList] = useState(null);
+    const [shoppingList, setShoppingList] = useState(null);
   const [loading, setLoading] = useState(false);
   const [swapping, setSwapping] = useState(null);
   const [shoppingLoading, setShoppingLoading] = useState(false);
@@ -203,6 +204,8 @@ function ThisWeek({
   const [modal, setModal] = useState(null);
   const [loadingSteps, setLoadingSteps] = useState(null);
   const [showIngredients, setShowIngredients] = useState(false);
+  const [showProfileUpdatePrompt, setShowProfileUpdatePrompt] = useState(false);
+  const [toast, setToast] = useState(null);
 
   const extractJson = (text) => {
     if (!text || typeof text !== 'string') {
@@ -387,6 +390,26 @@ RELAXED DAY MEAL RULES:
 
     setLoading(false);
   };
+        useEffect(() => {
+    if (profilesUpdatedAfterMeals && Object.keys(meals || {}).length > 0) {
+      setShowProfileUpdatePrompt(true);
+    }
+  }, [profilesUpdatedAfterMeals, meals]);
+
+  useEffect(() => {
+    if (!toast) return;
+
+    const timer = setTimeout(() => {
+      setToast(null);
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  useEffect(() => {
+    localStorage.setItem('tm_this_week_meals', JSON.stringify(meals || {}));
+    window.dispatchEvent(new Event('tablemates-week-updated'));
+  }, [meals]);
 
   const swapMeal = async (day) => {
   setSwapping(day);
@@ -441,13 +464,15 @@ RELAXED DAY MEAL RULES:
   setSwapping(null);
 };
 
-  const refreshAllMods = async () => {
+    const refreshAllMods = async () => {
     setSwapping('all_mods');
     setError(null);
+    setShowProfileUpdatePrompt(false);
 
     try {
       const familyInfo = buildFamilyInfo();
       const updatedMeals = { ...meals };
+      let totalModCount = 0;
 
       for (const day of DAYS) {
         if (!meals[day]) continue;
@@ -460,14 +485,24 @@ RELAXED DAY MEAL RULES:
           'Return ONLY valid JSON: {"modifications":[{"person":"Name","note":"note"}]}';
 
         const result = await callAI(prompt);
+        const mods = Array.isArray(result.modifications) ? result.modifications : [];
+
         updatedMeals[day] = {
           ...updatedMeals[day],
-          modifications: result.modifications || []
+          modifications: mods
         };
+
+        totalModCount += mods.filter((mod) => mod.person).length;
       }
 
       setMeals(updatedMeals);
       onMealsRegenerated();
+
+      if (totalModCount === 0) {
+        setToast('🎉 No new modifications needed');
+      } else {
+        setToast(`✅ Updated ${totalModCount} modification${totalModCount === 1 ? '' : 's'}`);
+      }
     } catch (err) {
       console.error('refreshAllMods error:', err);
       setError(err.message || 'Could not refresh modifications. Please try again.');
@@ -622,27 +657,16 @@ try {
     );
   };
 
-  return (
+    return (
     <div>
-      {profilesUpdatedAfterMeals && (
-        <div
-          style={{
-            background: '#FAEEDA',
-            borderRadius: '12px',
-            padding: '10px 14px',
-            marginBottom: '1rem',
-            fontSize: '13px',
-            color: '#854F0B',
-            lineHeight: '1.5'
-          }}
-        >
-          Your family profiles have changed. Consider replanning this week so Tablemates uses the latest info!
-        </div>
-      )}
-
       <div style={{ display: 'flex', gap: '8px', marginBottom: '1rem', flexWrap: 'wrap' }}>
         {Object.keys(meals).length === 0 ? (
-          <button className="suggest-btn" onClick={suggestWeek} disabled={loading} style={{ margin: 0 }}>
+          <button
+            className="suggest-btn"
+            onClick={suggestWeek}
+            disabled={loading}
+            style={{ margin: 0 }}
+          >
             {loading ? 'planning your week...' : "suggest this week's dinners"}
           </button>
         ) : (
@@ -673,32 +697,13 @@ try {
             >
               Save
             </button>
-
-            <button
-              onClick={refreshAllMods}
-              disabled={swapping === 'all_mods'}
-              style={{
-                flexShrink: 0,
-                padding: '13px 16px',
-                background: 'transparent',
-                color: '#888',
-                border: '1.5px solid #e0e0e0',
-                borderRadius: '14px',
-                fontSize: '13px',
-                fontWeight: '500',
-                cursor: 'pointer',
-                fontFamily: 'inherit'
-              }}
-            >
-              {swapping === 'all_mods' ? 'refreshing...' : 'refresh mods'}
-            </button>
           </>
         )}
       </div>
 
       {error && <p className="error-text">{error}</p>}
 
-      {DAYS.map((day) => {
+            {DAYS.map((day) => {
         const dayPace = getDayPace(schedule?.[day]);
 
         return (
@@ -711,7 +716,9 @@ try {
                 marginBottom: '10px'
               }}
             >
-              <div style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a' }}>{day}</div>
+              <div style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a' }}>
+                {day}
+              </div>
 
               {meals[day] && (
                 <span
@@ -739,14 +746,27 @@ try {
                     fontSize: '15px',
                     fontWeight: '600',
                     color: '#1a1a1a',
-                    marginBottom: '10px',
+                    marginBottom: '6px',
                     lineHeight: '1.3'
                   }}
                 >
                   {meals[day].name}
                 </div>
 
-                {hasMods(day) ? (
+                {meals[day]?.description && (
+                  <div
+                    style={{
+                      fontSize: '13px',
+                      color: '#6B7280',
+                      lineHeight: '1.45',
+                      marginBottom: '12px'
+                    }}
+                  >
+                    {meals[day].description}
+                  </div>
+                )}
+
+                {hasMods(day) && (
                   <div className="mods-section" style={{ marginBottom: '12px' }}>
                     <div className="mods-label">modifications</div>
                     {meals[day].modifications.map((mod, j) =>
@@ -754,24 +774,11 @@ try {
                         <div key={j} className="mod-row">
                           <div className="mod-avatar">{mod.person[0]}</div>
                           <div className="mod-text">
-                            <strong>{mod.person}</strong> -- {mod.note}
+                            <strong>{mod.person}</strong> — {mod.note}
                           </div>
                         </div>
                       ) : null
                     )}
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      fontSize: '12px',
-                      color: '#1D9E75',
-                      background: '#E1F5EE',
-                      borderRadius: '10px',
-                      padding: '8px 12px',
-                      marginBottom: '12px'
-                    }}
-                  >
-                    looks like everyone agrees today, no mods needed!
                   </div>
                 )}
 
@@ -796,7 +803,9 @@ try {
                 </div>
               </div>
             ) : (
-              <div className="week-meal-empty">{loading ? 'thinking...' : 'not yet planned'}</div>
+              <div className="week-meal-empty">
+                {loading ? 'thinking...' : 'not yet planned'}
+              </div>
             )}
           </div>
         );
@@ -929,13 +938,15 @@ try {
     <div className="cook-step-text">{step}</div>
   </div>
 ))}
-
-
             <div className="modal-actions">
               <button className="modal-keep" onClick={keepMeal}>
                 Keep this meal
               </button>
-              <button className="modal-swap" onClick={() => swapMeal(modal.day)}>
+
+              <button
+                className="modal-swap"
+                onClick={() => swapMeal(modal.day)}
+              >
                 Swap meal
               </button>
             </div>
@@ -943,6 +954,117 @@ try {
         </div>
       )}
 
+      {showProfileUpdatePrompt && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowProfileUpdatePrompt(false)}
+        >
+          <div
+            className="modal-sheet"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '420px' }}
+          >
+            <div className="modal-handle"></div>
+
+            <div
+              style={{
+                fontSize: '22px',
+                fontWeight: '700',
+                color: '#1F2937',
+                marginBottom: '10px'
+              }}
+            >
+              Profile updated
+            </div>
+
+            <div
+              style={{
+                fontSize: '15px',
+                lineHeight: 1.5,
+                color: '#6B7280',
+                marginBottom: '22px'
+              }}
+            >
+              A family profile was updated. Check for meal modifications?
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                className="modal-keep"
+                onClick={refreshAllMods}
+                style={{ flex: 1 }}
+              >
+                Check mods
+              </button>
+
+              <button
+                className="modal-swap"
+                onClick={() => setShowProfileUpdatePrompt(false)}
+                style={{ flex: 1 }}
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+{swapping === 'all_mods' && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(247,247,245,0.85)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 9998,
+      padding: '24px'
+    }}
+  >
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: '24px',
+        padding: '30px',
+        textAlign: 'center',
+        boxShadow: '0 12px 30px rgba(0,0,0,0.08)',
+        maxWidth: '340px',
+        width: '100%'
+      }}
+    >
+      <div
+        style={{
+          fontSize: '36px',
+          animation: 'forkBounce 1s infinite'
+        }}
+      >
+        🔍
+      </div>
+
+      <div
+        style={{
+          marginTop: '12px',
+          fontSize: '16px',
+          fontWeight: '600',
+          color: '#1a1a1a'
+        }}
+      >
+        Checking everyone's plates
+      </div>
+
+      <div
+        style={{
+          marginTop: '8px',
+          fontSize: '13px',
+          color: '#777',
+          lineHeight: '1.5'
+        }}
+      >
+        making sure tonight works for the whole table...
+      </div>
+    </div>
+  </div>
+)}
       {loading && (
         <div
           style={{
