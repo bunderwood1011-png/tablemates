@@ -388,58 +388,57 @@ RELAXED DAY MEAL RULES:
   };
 
   const swapMeal = async (day) => {
-    setSwapping(day);
-    setModal(null);
-    setError(null);
+  setSwapping(day);
+  setModal(null);
+  setError(null);
 
-    try {
-      const current = meals[day] ? meals[day].name : '';
-      const otherMealNames = DAYS.filter((d) => d !== day)
-        .map((d) => meals[d]?.name)
-        .filter(Boolean)
-        .join(', ');
+  try {
+    const current = meals[day] ? meals[day].name : '';
+    const otherMealNames = DAYS.filter((d) => d !== day)
+      .map((d) => meals[d]?.name)
+      .filter(Boolean)
+      .join(', ');
 
-      const familyInfo = buildFamilyInfo();
-const pace = getDayPace(schedule?.[day]);
-const maxMinutes = getMaxMinutesForPace(pace);
-const paceRules = getPaceMealRules(pace);
+    const familyInfo = buildFamilyInfo();
+    const pace = getDayPace(schedule?.[day]);
+    const maxMinutes = getMaxMinutesForPace(pace);
+    const paceRules = getPaceMealRules(pace);
 
-      const timeLimit =
-        maxMinutes === Infinity
-          ? 'any length'
-          : `${maxMinutes} minutes or less total, including prep and cook time`;
+    const timeLimit =
+      maxMinutes === Infinity
+        ? 'any length is allowed, but keep it practical'
+        : `${maxMinutes} minutes or less total, including prep and cook time`;
 
-      const prompt =
-  `Suggest one dinner for ${day} night. ` +
-  `This is a ${pace} day. ` +
-  `${paceRules}\n` +
-  (maxMinutes === Infinity
-    ? 'Time limit: any length is allowed, but keep it practical. '
-    : `Time limit: ${maxMinutes} minutes or less total, including prep and cook time. `) +
-  'The time must equal the REAL total cooking time including prep and cook time. ' +
-  'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
-  'Do NOT return times under the real cooking time. ' +
-  'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
-  'Do not label oven meals as 20 minutes or less. ' +
-  'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
-  `Family:\n${familyInfo}\n` +
-  (otherMealNames ? `Do NOT repeat these meals already in the week: ${otherMealNames}. ` : '') +
-  'Return ONLY valid JSON: {"name":"","time":"","description":"","modifications":[]}';
+    const prompt =
+      `Suggest one dinner for ${day} night. ` +
+      `This is a ${pace} day. ` +
+      `${paceRules}\n` +
+      `Time limit: ${timeLimit}. ` +
+      'The time must equal the REAL total cooking time including prep and cook time. ' +
+      'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
+      'Do NOT return times under the real cooking time. ' +
+      'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
+      'Do not label oven meals as 20 minutes or less. ' +
+      'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
+      `Family:\n${familyInfo}\n` +
+      (current ? `Do NOT suggest this current meal: ${current}. ` : '') +
+      (otherMealNames ? `Do NOT repeat these meals already in the week: ${otherMealNames}. ` : '') +
+      'Return ONLY valid JSON: {"name":"","time":"","description":"","modifications":[]}';
 
-      const result = await callAI(prompt);
+    const result = await callAI(prompt);
 
-      if (!mealFitsPace(result, pace)) {
-        throw new Error(`That swap did not fit the ${pace} time limit. Please try again.`);
-      }
-
-      setMeals((prev) => ({ ...prev, [day]: result }));
-    } catch (err) {
-      console.error('swapMeal error:', err);
-      setError(err.message || 'Swap failed. Please try again.');
+    if (!mealFitsPace(result, pace)) {
+      throw new Error(`That swap did not fit the ${pace} time limit. Please try again.`);
     }
 
-    setSwapping(null);
-  };
+    setMeals((prev) => ({ ...prev, [day]: result }));
+  } catch (err) {
+    console.error('swapMeal error:', err);
+    setError(err.message || 'Swap failed. Please try again.');
+  }
+
+  setSwapping(null);
+};
 
   const refreshAllMods = async () => {
     setSwapping('all_mods');
