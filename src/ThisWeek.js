@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { supabase } from './lib/supabase';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -16,13 +17,39 @@ const parseTime = (value) => {
   return hour * 60 + minute;
 };
 
+const parseMealDurationToMinutes = (value) => {
+  if (!value || typeof value !== 'string') return 0;
+
+  const lower = value.toLowerCase().trim();
+
+  let total = 0;
+
+  const hourMatch = lower.match(/(\d+)\s*(hr|hrs|hour|hours)/);
+  const minuteMatch = lower.match(/(\d+)\s*(min|mins|minute|minutes)/);
+
+  if (hourMatch) {
+    total += Number(hourMatch[1]) * 60;
+  }
+
+  if (minuteMatch) {
+    total += Number(minuteMatch[1]);
+  }
+
+  if (!hourMatch && !minuteMatch) {
+    const plainNumber = lower.match(/\d+/);
+    if (plainNumber) {
+      total = Number(plainNumber[0]);
+    }
+  }
+
+  return Number.isNaN(total) ? 0 : total;
+};
+
 const getDayPace = (dayData) => {
   if (!dayData) return 'relaxed';
 
-  // Supports old saved format: "busy"
   if (typeof dayData === 'string') return dayData;
 
-  // Supports new saved format: { items: [...] }
   const items = Array.isArray(dayData.items) ? dayData.items : [];
 
   if (!items.length) return 'relaxed';
@@ -106,7 +133,15 @@ function ThisWeek({
       body: JSON.stringify({ prompt })
     });
 
-    const data = await response.json();
+    const rawText = await response.text();
+
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      console.error('Non-JSON response from /api/ai:', rawText);
+      throw new Error('The AI endpoint returned HTML instead of JSON. Check /api/ai.');
+    }
 
     if (!response.ok) {
       throw new Error(data?.error || 'AI request failed');
@@ -144,6 +179,7 @@ function ThisWeek({
       const prompt =
         'You are a family meal planner. Suggest one dinner per night for a week. ' +
         'Busy nights need meals under 20 min, moderate nights under 40 min, relaxed nights can be any length. ' +
+        'The meal time must represent TOTAL time including prep and cook time. ' +
         'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
         'Do not repeat meals within the same week. ' +
         (existingMealNames ? `Avoid repeating these previously suggested meals if possible: ${existingMealNames}. ` : '') +
@@ -182,6 +218,7 @@ function ThisWeek({
       const prompt =
         `Suggest one dinner for ${day} night. ` +
         `Time limit: ${timeLimit}. ` +
+        'The meal time must represent TOTAL time including prep and cook time. ' +
         'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
         `Family:\n${familyInfo}\n` +
         (current ? `Do NOT suggest this current meal: ${current}. ` : '') +
@@ -191,8 +228,8 @@ function ThisWeek({
       const result = await callAI(prompt);
       setMeals((prev) => ({ ...prev, [day]: result }));
     } catch (err) {
-      console.error(err);
-      setError('Swap failed. Please try again.');
+      console.error('swapMeal error:', err);
+      setError(err.message || 'Swap failed. Please try again.');
     }
 
     setSwapping(null);
@@ -226,8 +263,8 @@ function ThisWeek({
       setMeals(updatedMeals);
       onMealsRegenerated();
     } catch (err) {
-      console.error(err);
-      setError('Could not refresh modifications. Please try again.');
+      console.error('refreshAllMods error:', err);
+      setError(err.message || 'Could not refresh modifications. Please try again.');
     }
 
     setSwapping(null);
@@ -250,8 +287,8 @@ function ThisWeek({
       setShoppingList(result.sections || []);
       onShoppingListReady(result.sections || []);
     } catch (err) {
-      console.error(err);
-      setError('Could not generate shopping list. Please try again.');
+      console.error('generateShoppingList error:', err);
+      setError(err.message || 'Could not generate shopping list. Please try again.');
     }
 
     setShoppingLoading(false);
@@ -279,33 +316,88 @@ function ThisWeek({
         steps: result.steps || []
       });
     } catch (err) {
-      console.error(err);
-      setError('Could not load recipe. Please try again.');
+      console.error('openRecipeModal error:', err);
+      setError(err.message || 'Could not load recipe. Please try again.');
     }
 
     setLoadingSteps(null);
   };
 
-  const keepMeal = () => {
-    if (!modal) return;
+  const keepMeal = async () => {
+    console.log('keepMeal clicked');
+
+    if (!modal) {
+      console.log('No modal found');
+      return;
+    }
+
+    setError(null);
+
+    const totalMinutes = parseMealDurationToMinutes(modal.meal.time);
 
     const newRecipe = {
       id: Date.now(),
       name: modal.meal.name,
       time: modal.meal.time,
       description: modal.meal.description,
-      steps: modal.steps,
+      steps: modal.steps || [],
       modifications: modal.meal.modifications || [],
       favorite: false
     };
 
-    setRecipes((prev) => {
-      const exists = prev.find((r) => r.name === modal.meal.name);
-      if (exists) return prev;
-      return [newRecipe, ...prev];
-    });
+    try {
+      const { data: existingRecipes, error: existingError } = await supabase
+        .from('recipes')
+        .select('id, name')
+        .eq('name', modal.meal.name);
 
-    setModal(null);
+      console.log('existingRecipes:', existingRecipes);
+      console.log('existingError:', existingError);
+
+      if (existingError) {
+        throw existingError;
+      }
+
+      const alreadyExists = Array.isArray(existingRecipes) && existingRecipes.length > 0;
+
+      if (!alreadyExists) {
+        const { data: insertedRecipe, error: insertError } = await supabase
+          .from('recipes')
+          .insert([
+            {
+              name: modal.meal.name,
+              description: modal.meal.description || '',
+              prep_minutes: 0,
+              cook_minutes: totalMinutes,
+              time_label: modal.meal.time || '',
+              steps: modal.steps || [],
+              ingredients: [],
+              tags: [],
+              dietary_flags: [],
+              source_type: 'ai'
+            }
+          ])
+          .select();
+
+        console.log('insertedRecipe:', insertedRecipe);
+        console.log('insertError:', insertError);
+
+        if (insertError) {
+          throw insertError;
+        }
+      }
+
+      setRecipes((prev) => {
+        const existsLocally = prev.some((r) => r.name === modal.meal.name);
+        if (existsLocally) return prev;
+        return [newRecipe, ...prev];
+      });
+
+      setModal(null);
+    } catch (err) {
+      console.error('keepMeal error:', err);
+      setError(err.message || 'Could not save this recipe right now. Please try again.');
+    }
   };
 
   const paceColor = { relaxed: '#1D9E75', moderate: '#BA7517', busy: '#A32D2D' };
@@ -554,6 +646,59 @@ function ThisWeek({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {loading && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(247,247,245,0.85)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '24px',
+              padding: '30px',
+              textAlign: 'center',
+              boxShadow: '0 12px 30px rgba(0,0,0,0.08)'
+            }}
+          >
+            <div
+              style={{
+                fontSize: '36px',
+                animation: 'forkBounce 1s infinite'
+              }}
+            >
+              🍴
+            </div>
+
+            <div
+              style={{
+                marginTop: '12px',
+                fontSize: '16px',
+                fontWeight: '600'
+              }}
+            >
+              hold on, looking for my favorite fork
+            </div>
+          </div>
+
+          <style>
+            {`
+              @keyframes forkBounce {
+                0%,100% { transform: translateY(0); }
+                40% { transform: translateY(-10px); }
+                60% { transform: translateY(0); }
+              }
+            `}
+          </style>
         </div>
       )}
     </div>
