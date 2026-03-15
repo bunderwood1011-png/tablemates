@@ -1,11 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
+import Splash from './Splash';
+import OnboardingScreen from './OnboardingScreen';
 import AuthScreen from './AuthScreen';
 import MainApp from './MainApp';
 
 function App() {
   const [session, setSession] = useState(null);
   const [loadingSession, setLoadingSession] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState(
+    localStorage.getItem('tablemates_onboarding_seen') === 'true'
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -34,6 +40,15 @@ function App() {
     };
   }, []);
 
+  const handleFinishOnboarding = () => {
+    localStorage.setItem('tablemates_onboarding_seen', 'true');
+    setHasSeenOnboarding(true);
+  };
+
+  if (showSplash) {
+    return <Splash onDone={() => setShowSplash(false)} />;
+  }
+
   if (loadingSession) {
     return (
       <div
@@ -50,6 +65,10 @@ function App() {
         loading tablemates...
       </div>
     );
+  }
+
+  if (!session && !hasSeenOnboarding) {
+    return <OnboardingScreen onContinue={handleFinishOnboarding} />;
   }
 
   if (!session) {
