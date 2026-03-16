@@ -19,7 +19,7 @@ const DEFAULT_SCHEDULE = {
   Sunday: 'relaxed'
 };
 
-function MainApp({ user, isBetaUser }) {
+function MainApp({ user }) {
   const [showSplash, setShowSplash] = useState(true);
   const [activeTab, setActiveTab] = useState('week');
   const [profilesUpdatedAfterMeals, setProfilesUpdatedAfterMeals] = useState(false);
