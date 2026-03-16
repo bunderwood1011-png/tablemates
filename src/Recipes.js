@@ -2,13 +2,19 @@ import React, { useState, useEffect } from 'react';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-function Recipes({ recipes, setRecipes, highlightedRecipe, setHighlightedRecipe }) {
+function Recipes({
+  recipes,
+  setRecipes,
+  highlightedRecipe,
+  setHighlightedRecipe,
+  meals,
+  setMeals
+}) {
   const [expanded, setExpanded] = useState(null);
   const [filter, setFilter] = useState('all');
   const [expandedMods, setExpandedMods] = useState({});
   const [showIngredients, setShowIngredients] = useState({});
   const [recipeToPlan, setRecipeToPlan] = useState(null);
-  const [currentWeekMeals, setCurrentWeekMeals] = useState({});
 
   useEffect(() => {
     if (highlightedRecipe) {
@@ -22,23 +28,6 @@ function Recipes({ recipes, setRecipes, highlightedRecipe, setHighlightedRecipe 
     }
   }, [highlightedRecipe, recipes, setHighlightedRecipe]);
 
-  useEffect(() => {
-    const syncWeekMeals = () => {
-      try {
-        const stored = JSON.parse(localStorage.getItem('tm_this_week_meals') || '{}');
-        setCurrentWeekMeals(stored || {});
-      } catch (err) {
-        console.error('Could not read current week meals', err);
-      }
-    };
-
-    syncWeekMeals();
-    window.addEventListener('tablemates-week-updated', syncWeekMeals);
-
-    return () => {
-      window.removeEventListener('tablemates-week-updated', syncWeekMeals);
-    };
-  }, []);
 
   const toggleFavorite = (id) => {
     setRecipes((prev) =>
@@ -54,23 +43,28 @@ function Recipes({ recipes, setRecipes, highlightedRecipe, setHighlightedRecipe 
     setRecipeToPlan(recipe);
   };
 
-  const addRecipeToSpecificDay = (recipe, day) => {
-    const payload = {
-      day,
-      recipe: {
+const addRecipeToSpecificDay = async (recipe, day) => {
+  try {
+    const updatedMeals = {
+      ...meals,
+      [day]: {
         name: recipe.name || '',
         time: recipe.time || '',
         description: recipe.description || '',
         ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [],
         steps: Array.isArray(recipe.steps) ? recipe.steps : [],
-        modifications: Array.isArray(recipe.modifications) ? recipe.modifications : []
+        modifications: Array.isArray(recipe.modifications) ? recipe.modifications : [],
+        skipped: false,
+        plannedElsewhere: false
       }
     };
 
-    localStorage.setItem('tm_add_to_this_week', JSON.stringify(payload));
-    window.dispatchEvent(new Event('tablemates-add-to-this-week'));
+    await setMeals(updatedMeals);
     setRecipeToPlan(null);
-  };
+  } catch (err) {
+    console.error('Could not add recipe to this week', err);
+  }
+};
 
   const displayed =
     filter === 'favorites' ? recipes.filter((r) => r.favorite) : recipes;
@@ -478,7 +472,7 @@ function Recipes({ recipes, setRecipes, highlightedRecipe, setHighlightedRecipe 
                       lineHeight: 1.4
                     }}
                   >
-                    {currentWeekMeals?.[day]?.name || 'empty'}
+                    {meals?.[day]?.name || 'empty'}
                   </div>
                 </button>
               ))}

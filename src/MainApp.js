@@ -564,12 +564,14 @@ function MainApp({ user, isBetaUser }) {
           />
         )}
         {activeTab === 'recipes' && (
-          <Recipes
-            recipes={recipes}
-            setRecipes={setRecipes}
-            highlightedRecipe={highlightedRecipe}
-            setHighlightedRecipe={setHighlightedRecipe}
-          />
+         <Recipes
+  recipes={recipes}
+  setRecipes={setRecipes}
+  highlightedRecipe={highlightedRecipe}
+  setHighlightedRecipe={setHighlightedRecipe}
+  meals={meals}
+  setMeals={setMeals}
+/>
         )}
         {activeTab === 'pastweeks' && (
           <PastWeeks
