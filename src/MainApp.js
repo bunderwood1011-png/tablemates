@@ -26,10 +26,11 @@ function MainApp({ user, isBetaUser }) {
   const [highlightedRecipe, setHighlightedRecipe] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showBetaWelcome, setShowBetaWelcome] = useState(false);
   const [members, setMembersRaw] = useState([]);
   const [meals, setMealsRaw] = useState({});
   const [schedule, setScheduleRaw] = useState(DEFAULT_SCHEDULE);
+  const [isBetaUser, setIsBetaUser] = useState(false);
+  const [showBetaWelcome, setShowBetaWelcome] = useState(false);
 
   const [shoppingList, setShoppingList] = useState(() => {
     try {
