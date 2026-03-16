@@ -6,6 +6,8 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 const JSON_TEMPLATE =
   '{"meals":{"Monday":{"name":"","time":"","description":"","modifications":[]},"Tuesday":{"name":"","time":"","description":"","modifications":[]},"Wednesday":{"name":"","time":"","description":"","modifications":[]},"Thursday":{"name":"","time":"","description":"","modifications":[]},"Friday":{"name":"","time":"","description":"","modifications":[]},"Saturday":{"name":"","time":"","description":"","modifications":[]},"Sunday":{"name":"","time":"","description":"","modifications":[]}}}';
 
+const NOTICE_STORAGE_KEY = 'tm_this_week_notice';
+
 const parseTime = (value) => {
   if (!value) return null;
 
@@ -17,12 +19,11 @@ const parseTime = (value) => {
   return hour * 60 + minute;
 };
 
- const parseMealDurationToMinutes = (value) => {
+const parseMealDurationToMinutes = (value) => {
   if (!value || typeof value !== 'string') return 0;
 
   const lower = value.toLowerCase().trim();
 
-  // Handle ranges like "45-50 min" or "45–50 min"
   const rangeMatch = lower.match(/(\d+)\s*[-–]\s*(\d+)/);
   if (rangeMatch) {
     return Number(rangeMatch[2]);
@@ -30,14 +31,12 @@ const parseTime = (value) => {
 
   let total = 0;
 
-  // Handle decimal hours like "2.5 hours"
   const decimalHourMatch = lower.match(/(\d+(?:\.\d+)?)\s*(hr|hrs|hour|hours)/);
   const minuteMatch = lower.match(/(\d+)\s*(min|mins|minute|minutes)/);
 
   if (decimalHourMatch) total += Math.round(Number(decimalHourMatch[1]) * 60);
   if (minuteMatch) total += Number(minuteMatch[1]);
 
-  // Handle plain numbers like "30"
   if (!decimalHourMatch && !minuteMatch) {
     const plainNumber = lower.match(/\d+/);
     if (plainNumber) total = Number(plainNumber[0]);
@@ -51,12 +50,11 @@ const getMaxMinutesForPace = (pace) => {
   if (pace === 'moderate') return 60;
   return Infinity;
 };
+
 const getMealTimeFloor = (meal) => {
   const text = `${meal?.name || ''} ${meal?.description || ''}`.toLowerCase();
-
   const hasAny = (keywords) => keywords.some((word) => text.includes(word));
 
-  // Very slow meals
   if (
     hasAny([
       'pot roast',
@@ -74,7 +72,6 @@ const getMealTimeFloor = (meal) => {
     return 90;
   }
 
-  // Slow meals
   if (
     hasAny([
       'lasagna',
@@ -88,7 +85,6 @@ const getMealTimeFloor = (meal) => {
     return 60;
   }
 
-  // Medium-slow meals
   if (
     hasAny([
       'sheet pan',
@@ -102,7 +98,6 @@ const getMealTimeFloor = (meal) => {
     return 40;
   }
 
-  // Medium meals
   if (
     hasAny([
       'pasta',
@@ -120,7 +115,6 @@ const getMealTimeFloor = (meal) => {
     return 25;
   }
 
-  // Faster meals
   if (
     hasAny([
       'taco',
@@ -143,15 +137,15 @@ const getMealTimeFloor = (meal) => {
 const getEffectiveMealMinutes = (meal) => {
   const parsedMinutes = parseMealDurationToMinutes(meal?.time);
   const floorMinutes = getMealTimeFloor(meal);
-
   return Math.max(parsedMinutes || 0, floorMinutes);
 };
+
 const mealFitsPace = (meal, pace) => {
   const maxMinutes = getMaxMinutesForPace(pace);
   const effectiveMinutes = getEffectiveMealMinutes(meal);
-
   return effectiveMinutes <= maxMinutes;
 };
+
 const getDayPace = (dayData) => {
   if (!dayData) return 'relaxed';
   if (typeof dayData === 'string') return dayData;
@@ -193,10 +187,9 @@ function ThisWeek({
   recipes,
   setRecipes,
   profilesUpdatedAfterMeals,
-  onMealsRegenerated,
-  changedProfileNames = []
+  onMealsRegenerated
 }) {
-    const [shoppingList, setShoppingList] = useState(null);
+  const [shoppingList, setShoppingList] = useState(null);
   const [loading, setLoading] = useState(false);
   const [swapping, setSwapping] = useState(null);
   const [shoppingLoading, setShoppingLoading] = useState(false);
@@ -205,7 +198,7 @@ function ThisWeek({
   const [loadingSteps, setLoadingSteps] = useState(null);
   const [showIngredients, setShowIngredients] = useState(false);
   const [showProfileUpdatePrompt, setShowProfileUpdatePrompt] = useState(false);
-  const [toast, setToast] = useState(null);
+  const [notice, setNotice] = useState(null);
 
   const extractJson = (text) => {
     if (!text || typeof text !== 'string') {
@@ -253,6 +246,33 @@ function ThisWeek({
     return extractJson(data.text);
   };
 
+  const showNotice = (message, tone = 'info') => {
+    const payload = {
+      id: Date.now(),
+      message,
+      tone,
+      createdAt: Date.now()
+    };
+
+    setNotice(payload);
+
+    try {
+      sessionStorage.setItem(NOTICE_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // ignore storage issues
+    }
+  };
+
+  const clearNotice = () => {
+    setNotice(null);
+
+    try {
+      sessionStorage.removeItem(NOTICE_STORAGE_KEY);
+    } catch {
+      // ignore storage issues
+    }
+  };
+
   const buildFamilyInfo = () => {
     return members
       .map((m) => {
@@ -264,6 +284,57 @@ function ThisWeek({
       })
       .join('\n');
   };
+
+  const getMealPlanImpactSummary = (previousMeals = {}, nextMeals = {}) => {
+    let replacedDays = 0;
+    let clearedModDays = 0;
+
+    for (const day of DAYS) {
+      const previousMeal = previousMeals?.[day];
+      const nextMeal = nextMeals?.[day];
+
+      if (!previousMeal || !nextMeal) continue;
+
+      if (previousMeal.name !== nextMeal.name) {
+        replacedDays += 1;
+
+        const hadMods =
+          Array.isArray(previousMeal.modifications) &&
+          previousMeal.modifications.some((mod) => mod.person);
+
+        if (hadMods) {
+          clearedModDays += 1;
+        }
+      }
+    }
+
+    return { replacedDays, clearedModDays };
+  };
+
+      const buildMealPlanUpdateMessage = ({
+  action = 'week',
+  clearedModDays = 0
+}) => {
+  const isSwap = action === 'swap';
+  const prefix = isSwap ? 'Meal swapped.' : 'Week updated.';
+  const effects = [];
+
+  if (isSwap) {
+    effects.push('Consider recreating your shopping list');
+  } else {
+    effects.push('Consider creating a new shopping list');
+  }
+
+  if (clearedModDays > 0) {
+    effects.push(
+      clearedModDays === 1
+        ? '1 day of modifications was reset'
+        : `${clearedModDays} days of modifications were reset`
+    );
+  }
+
+  return `${prefix} ${effects.join(' and ')}.`;
+};
 
   const regenerateMealForDay = async (day, existingMeals) => {
     const familyInfo = buildFamilyInfo();
@@ -308,9 +379,10 @@ function ThisWeek({
 
     return fixedMeals;
   };
-const getPaceMealRules = (pace) => {
-  if (pace === 'busy') {
-    return `
+
+  const getPaceMealRules = (pace) => {
+    if (pace === 'busy') {
+      return `
 BUSY DAY MEAL RULES:
 - Choose dinners that realistically take 30 minutes or less of active cooking time.
 - Prioritize tacos, quesadillas, wraps, sandwiches, burgers, skillet meals, stir-fry, quick pasta, rice bowls, soups, salads, and flatbreads.
@@ -325,63 +397,75 @@ Avoid:
 - Sheet pan dinners with long bake times
 - Recipes requiring long marinating, breading and baking, or extended simmering.
 `;
-  }
+    }
 
-  if (pace === 'moderate') {
-    return `
+    if (pace === 'moderate') {
+      return `
 MODERATE DAY MEAL RULES:
 - Choose dinners that realistically take 60 minutes or less total.
 - Moderate-effort meals are okay, including pasta, burgers with sides, skillet meals, protein + side dinners, enchiladas, and simple oven meals.
 - Avoid very long roasts, brisket, pot roast, or anything that takes more than 60 minutes total.
 - Keep meals practical for a normal weeknight.
 `;
-  }
+    }
 
-  return `
+    return `
 RELAXED DAY MEAL RULES:
 - Longer and more involved meals are welcome.
 - Roasts, casseroles, baked dishes, comfort meals, and slow-cooked meals are all acceptable.
 - Keep meals realistic and family-friendly.
 `;
-};
+  };
+
   const suggestWeek = async () => {
-  setLoading(true);
-  setError(null);
-  setShoppingList(null);
-  onMealsRegenerated();
+    setLoading(true);
+    setError(null);
 
-  try {
-    const familyInfo = buildFamilyInfo();
-    const scheduleInfo = DAYS.map((d) => {
-      const pace = getDayPace(schedule?.[d]);
-      return `${d}: ${pace}\n${getPaceMealRules(pace)}`;
-    }).join('\n\n');
+    const previousMeals = meals || {};
+    const hadShoppingList = Array.isArray(shoppingList) && shoppingList.length > 0;
 
-    const existingMealNames = Object.values(meals || {})
-      .map((meal) => meal?.name)
-      .filter(Boolean)
-      .join(', ');
+    setShoppingList(null);
+    onMealsRegenerated();
 
-    const prompt =
-      'You are a family meal planner. Suggest one dinner per night for a week. ' +
-      'Busy nights need meals 30 min or less, moderate nights 60 min or less, relaxed nights can be any length. ' +
-      'The time must equal the REAL total cooking time including prep and cook time. ' +
-      'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
-      'Do NOT return times under the real cooking time. ' +
-      'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
-      'Do not label oven meals as 20 minutes or less. ' +
-      'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
-      'Do not repeat meals within the same week. ' +
-      (existingMealNames ? `Avoid repeating these previously suggested meals if possible: ${existingMealNames}. ` : '') +
-      `Family:\n${familyInfo}\n` +
-      `Schedule and pace rules:\n${scheduleInfo}\n` +
-      'Return ONLY valid JSON matching this template, and fill in every field exactly: ' +
-      JSON_TEMPLATE;
+    try {
+      const familyInfo = buildFamilyInfo();
+      const scheduleInfo = DAYS.map((d) => {
+        const pace = getDayPace(schedule?.[d]);
+        return `${d}: ${pace}\n${getPaceMealRules(pace)}`;
+      }).join('\n\n');
+
+      const existingMealNames = Object.values(meals || {})
+        .map((meal) => meal?.name)
+        .filter(Boolean)
+        .join(', ');
+
+      const prompt =
+        'You are a family meal planner. Suggest one dinner per night for a week. ' +
+        'Busy nights need meals 30 min or less, moderate nights 60 min or less, relaxed nights can be any length. ' +
+        'The time must equal the REAL total cooking time including prep and cook time. ' +
+        'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
+        'Do NOT return times under the real cooking time. ' +
+        'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
+        'Do not label oven meals as 20 minutes or less. ' +
+        'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
+        'Do not repeat meals within the same week. ' +
+        (existingMealNames ? `Avoid repeating these previously suggested meals if possible: ${existingMealNames}. ` : '') +
+        `Family:\n${familyInfo}\n` +
+        `Schedule and pace rules:\n${scheduleInfo}\n` +
+        'Return ONLY valid JSON matching this template, and fill in every field exactly: ' +
+        JSON_TEMPLATE;
 
       const result = await callAI(prompt);
       const generatedMeals = result.meals || {};
       const validatedMeals = await validateAndFixMeals(generatedMeals);
+      const impact = getMealPlanImpactSummary(previousMeals, validatedMeals);
+      const message = buildMealPlanUpdateMessage({
+        action: 'week',
+        hadShoppingList,
+        clearedModDays: impact.clearedModDays
+      });
 
+      showNotice(message, 'info');
       setMeals(validatedMeals);
     } catch (err) {
       console.error('suggestWeek error:', err);
@@ -390,81 +474,74 @@ RELAXED DAY MEAL RULES:
 
     setLoading(false);
   };
-        useEffect(() => {
-    if (profilesUpdatedAfterMeals && Object.keys(meals || {}).length > 0) {
-      setShowProfileUpdatePrompt(true);
-    }
-  }, [profilesUpdatedAfterMeals, meals]);
-
-  useEffect(() => {
-    if (!toast) return;
-
-    const timer = setTimeout(() => {
-      setToast(null);
-    }, 2500);
-
-    return () => clearTimeout(timer);
-  }, [toast]);
-
-  useEffect(() => {
-    localStorage.setItem('tm_this_week_meals', JSON.stringify(meals || {}));
-    window.dispatchEvent(new Event('tablemates-week-updated'));
-  }, [meals]);
 
   const swapMeal = async (day) => {
-  setSwapping(day);
-  setModal(null);
-  setError(null);
+    setSwapping(day);
+    setModal(null);
+    setError(null);
 
-  try {
-    const current = meals[day] ? meals[day].name : '';
-    const otherMealNames = DAYS.filter((d) => d !== day)
-      .map((d) => meals[d]?.name)
-      .filter(Boolean)
-      .join(', ');
+    const previousMeal = meals?.[day];
+    const hadShoppingList = Array.isArray(shoppingList) && shoppingList.length > 0;
+    const previousMealHadMods =
+      Array.isArray(previousMeal?.modifications) &&
+      previousMeal.modifications.some((mod) => mod.person);
 
-    const familyInfo = buildFamilyInfo();
-    const pace = getDayPace(schedule?.[day]);
-    const maxMinutes = getMaxMinutesForPace(pace);
-    const paceRules = getPaceMealRules(pace);
+    try {
+      const current = meals[day] ? meals[day].name : '';
+      const otherMealNames = DAYS.filter((d) => d !== day)
+        .map((d) => meals[d]?.name)
+        .filter(Boolean)
+        .join(', ');
 
-    const timeLimit =
-      maxMinutes === Infinity
-        ? 'any length is allowed, but keep it practical'
-        : `${maxMinutes} minutes or less total, including prep and cook time`;
+      const familyInfo = buildFamilyInfo();
+      const pace = getDayPace(schedule?.[day]);
+      const maxMinutes = getMaxMinutesForPace(pace);
+      const paceRules = getPaceMealRules(pace);
 
-    const prompt =
-      `Suggest one dinner for ${day} night. ` +
-      `This is a ${pace} day. ` +
-      `${paceRules}\n` +
-      `Time limit: ${timeLimit}. ` +
-      'The time must equal the REAL total cooking time including prep and cook time. ' +
-      'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
-      'Do NOT return times under the real cooking time. ' +
-      'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
-      'Do not label oven meals as 20 minutes or less. ' +
-      'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
-      `Family:\n${familyInfo}\n` +
-      (current ? `Do NOT suggest this current meal: ${current}. ` : '') +
-      (otherMealNames ? `Do NOT repeat these meals already in the week: ${otherMealNames}. ` : '') +
-      'Return ONLY valid JSON: {"name":"","time":"","description":"","modifications":[]}';
+      const timeLimit =
+        maxMinutes === Infinity
+          ? 'any length is allowed, but keep it practical'
+          : `${maxMinutes} minutes or less total, including prep and cook time`;
 
-    const result = await callAI(prompt);
+      const prompt =
+        `Suggest one dinner for ${day} night. ` +
+        `This is a ${pace} day. ` +
+        `${paceRules}\n` +
+        `Time limit: ${timeLimit}. ` +
+        'The time must equal the REAL total cooking time including prep and cook time. ' +
+        'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
+        'Do NOT return times under the real cooking time. ' +
+        'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
+        'Do not label oven meals as 20 minutes or less. ' +
+        'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
+        `Family:\n${familyInfo}\n` +
+        (current ? `Do NOT suggest this current meal: ${current}. ` : '') +
+        (otherMealNames ? `Do NOT repeat these meals already in the week: ${otherMealNames}. ` : '') +
+        'Return ONLY valid JSON: {"name":"","time":"","description":"","modifications":[]}';
 
-    if (!mealFitsPace(result, pace)) {
-      throw new Error(`That swap did not fit the ${pace} time limit. Please try again.`);
+      const result = await callAI(prompt);
+
+      if (!mealFitsPace(result, pace)) {
+        throw new Error(`That swap did not fit the ${pace} time limit. Please try again.`);
+      }
+
+      const message = buildMealPlanUpdateMessage({
+        action: 'swap',
+        hadShoppingList,
+        clearedModDays: previousMealHadMods ? 1 : 0
+      });
+
+      showNotice(message, 'info');
+      setMeals((prev) => ({ ...prev, [day]: result }));
+    } catch (err) {
+      console.error('swapMeal error:', err);
+      setError(err.message || 'Swap failed. Please try again.');
     }
 
-    setMeals((prev) => ({ ...prev, [day]: result }));
-  } catch (err) {
-    console.error('swapMeal error:', err);
-    setError(err.message || 'Swap failed. Please try again.');
-  }
+    setSwapping(null);
+  };
 
-  setSwapping(null);
-};
-
-    const refreshAllMods = async () => {
+  const refreshAllMods = async () => {
     setSwapping('all_mods');
     setError(null);
     setShowProfileUpdatePrompt(false);
@@ -499,9 +576,12 @@ RELAXED DAY MEAL RULES:
       onMealsRegenerated();
 
       if (totalModCount === 0) {
-        setToast('🎉 No new modifications needed');
+        showNotice('🎉 No new modifications needed', 'success');
       } else {
-        setToast(`✅ Updated ${totalModCount} modification${totalModCount === 1 ? '' : 's'}`);
+        showNotice(
+          `✅ Updated ${totalModCount} modification${totalModCount === 1 ? '' : 's'}`,
+          'success'
+        );
       }
     } catch (err) {
       console.error('refreshAllMods error:', err);
@@ -533,54 +613,54 @@ RELAXED DAY MEAL RULES:
     }
 
     setShoppingLoading(false);
-
   };
+
   const openRecipeModal = async (day) => {
-  setLoadingSteps(day);
-  setError(null);
+    setLoadingSteps(day);
+    setError(null);
 
-  try {
-    const meal = meals[day];
-    const familyInfo = buildFamilyInfo();
+    try {
+      const meal = meals[day];
+      const familyInfo = buildFamilyInfo();
 
-    const prompt =
-      `Create a simple family-friendly recipe for this meal: ${meal.name}. ` +
-      (meal.description ? `Meal description: ${meal.description}. ` : '') +
-      `Family info:\n${familyInfo}\n` +
-      'Return ONLY valid JSON in this exact format: ' +
-      '{"ingredients":["ingredient 1","ingredient 2"],"steps":["step 1","step 2","step 3","step 4","step 5","step 6"]}. ' +
-      'Ingredients should be a simple grocery-style list with amounts when possible. ' +
-      'Steps should be short, clear, and easy to follow, one sentence each. ' +
-      'Do not include any extra text outside the JSON.';
+      const prompt =
+        `Create a simple family-friendly recipe for this meal: ${meal.name}. ` +
+        (meal.description ? `Meal description: ${meal.description}. ` : '') +
+        `Family info:\n${familyInfo}\n` +
+        'Return ONLY valid JSON in this exact format: ' +
+        '{"ingredients":["ingredient 1","ingredient 2"],"steps":["step 1","step 2","step 3","step 4","step 5","step 6"]}. ' +
+        'Ingredients should be a simple grocery-style list with amounts when possible. ' +
+        'Steps should be short, clear, and easy to follow, one sentence each. ' +
+        'Do not include any extra text outside the JSON.';
 
-    const result = await callAI(prompt);
+      const result = await callAI(prompt);
 
-    const ingredients = Array.isArray(result.ingredients) ? result.ingredients : [];
-    const steps = Array.isArray(result.steps) ? result.steps : [];
-    const stepText = steps.join(' ').toLowerCase();
+      const ingredients = Array.isArray(result.ingredients) ? result.ingredients : [];
+      const steps = Array.isArray(result.steps) ? result.steps : [];
+      const stepText = steps.join(' ').toLowerCase();
 
-    if (
-      (stepText.includes('bake') || stepText.includes('roast')) &&
-      parseMealDurationToMinutes(meal.time) < 30
-    ) {
-      console.warn('AI returned unrealistic oven recipe time:', meal.name, meal.time);
+      if (
+        (stepText.includes('bake') || stepText.includes('roast')) &&
+        parseMealDurationToMinutes(meal.time) < 30
+      ) {
+        console.warn('AI returned unrealistic oven recipe time:', meal.name, meal.time);
+      }
+
+      setShowIngredients(false);
+
+      setModal({
+        day,
+        meal,
+        ingredients,
+        steps
+      });
+    } catch (err) {
+      console.error('openRecipeModal error:', err);
+      setError(err.message || 'Could not load recipe. Please try again.');
     }
 
-    setShowIngredients(false);
-
-    setModal({
-      day,
-      meal,
-      ingredients,
-      steps
-    });
-  } catch (err) {
-    console.error('openRecipeModal error:', err);
-    setError(err.message || 'Could not load recipe. Please try again.');
-  }
-
-  setLoadingSteps(null);
-};
+    setLoadingSteps(null);
+  };
 
   const keepMeal = async () => {
     if (!modal) return;
@@ -589,62 +669,103 @@ RELAXED DAY MEAL RULES:
 
     const totalMinutes = parseMealDurationToMinutes(modal.meal.time);
 
-const newRecipe = {
-  id: Date.now(),
-  name: modal.meal.name,
-  time: modal.meal.time,
-  description: modal.meal.description,
-  ingredients: modal.ingredients || [],
-  steps: modal.steps || [],
-  modifications: modal.meal.modifications || [],
-  favorite: false
-};
+    const newRecipe = {
+      id: Date.now(),
+      name: modal.meal.name,
+      time: modal.meal.time,
+      description: modal.meal.description,
+      ingredients: modal.ingredients || [],
+      steps: modal.steps || [],
+      modifications: modal.meal.modifications || [],
+      favorite: false
+    };
 
-try {
-    const { data: existingRecipes, error: existingError } = await supabase
-    .from('recipes')
-    .select('id, name')
-    .eq('name', modal.meal.name);
+    try {
+      const { data: existingRecipes, error: existingError } = await supabase
+        .from('recipes')
+        .select('id, name')
+        .eq('name', modal.meal.name);
 
-  if (existingError) {
-    throw existingError;
-  }
-
-  const alreadyExists = Array.isArray(existingRecipes) && existingRecipes.length > 0;
-
-  if (!alreadyExists) {
-    const { error: insertError } = await supabase.from('recipes').insert([
-      {
-        name: modal.meal.name,
-        description: modal.meal.description || '',
-        prep_minutes: 0,
-        cook_minutes: totalMinutes,
-        time_label: modal.meal.time || '',
-        steps: modal.steps || [],
-        ingredients: modal.ingredients || [],
-        tags: [],
-        dietary_flags: [],
-        source_type: 'ai'
+      if (existingError) {
+        throw existingError;
       }
-    ]);
 
-    if (insertError) {
-      throw insertError;
+      const alreadyExists = Array.isArray(existingRecipes) && existingRecipes.length > 0;
+
+      if (!alreadyExists) {
+        const { error: insertError } = await supabase.from('recipes').insert([
+          {
+            name: modal.meal.name,
+            description: modal.meal.description || '',
+            prep_minutes: 0,
+            cook_minutes: totalMinutes,
+            time_label: modal.meal.time || '',
+            steps: modal.steps || [],
+            ingredients: modal.ingredients || [],
+            tags: [],
+            dietary_flags: [],
+            source_type: 'ai'
+          }
+        ]);
+
+        if (insertError) {
+          throw insertError;
+        }
+      }
+
+      setRecipes((prev) => {
+        const existsLocally = prev.some((r) => r.name === modal.meal.name);
+        if (existsLocally) return prev;
+        return [newRecipe, ...prev];
+      });
+
+      setModal(null);
+    } catch (err) {
+      console.error('keepMeal error:', err);
+      setError(err.message || 'Could not save this recipe right now. Please try again.');
     }
-  }
+  };
 
-  setRecipes((prev) => {
-    const existsLocally = prev.some((r) => r.name === modal.meal.name);
-    if (existsLocally) return prev;
-    return [newRecipe, ...prev];
-  });
+  useEffect(() => {
+    if (profilesUpdatedAfterMeals && Object.keys(meals || {}).length > 0) {
+      setShowProfileUpdatePrompt(true);
+    }
+  }, [profilesUpdatedAfterMeals, meals]);
 
-  setModal(null);
-} catch (err) {
-  console.error('keepMeal error:', err);
-  setError(err.message || 'Could not save this recipe right now. Please try again.');
-}
-};
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(NOTICE_STORAGE_KEY);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw);
+      if (!parsed?.message) return;
+
+      const isFresh = Date.now() - (parsed.createdAt || 0) < 5000;
+      if (isFresh) {
+        setNotice(parsed);
+      } else {
+        sessionStorage.removeItem(NOTICE_STORAGE_KEY);
+      }
+    } catch {
+      // ignore storage issues
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!notice?.id) return;
+
+    const timer = setTimeout(() => {
+      clearNotice();
+    }, 3200);
+
+    return () => clearTimeout(timer);
+  }, [notice?.id]);
+
+  useEffect(() => {
+    localStorage.setItem('tm_this_week_meals', JSON.stringify(meals || {}));
+    window.dispatchEvent(new Event('tablemates-week-updated'));
+  }, [meals]);
+
   const paceColor = { relaxed: '#1D9E75', moderate: '#BA7517', busy: '#A32D2D' };
   const paceBg = { relaxed: '#E1F5EE', moderate: '#FAEEDA', busy: '#FCEBEB' };
 
@@ -657,7 +778,24 @@ try {
     );
   };
 
-      return (
+  const shouldShowShoppingListButton =
+    DAYS.every((day) => meals?.[day]?.name) &&
+    (!Array.isArray(shoppingList) || shoppingList.length === 0);
+
+  const noticeStyles =
+    notice?.tone === 'success'
+      ? {
+          background: '#E8F7EF',
+          color: '#17603E',
+          border: '1px solid #B7E4C7'
+        }
+      : {
+          background: '#FFF4E8',
+          color: '#8A4B12',
+          border: '1px solid #FFD9B3'
+        };
+
+  return (
     <div>
       <div style={{ display: 'flex', gap: '8px', marginBottom: '1rem', flexWrap: 'wrap' }}>
         {Object.keys(meals).length === 0 ? (
@@ -702,6 +840,29 @@ try {
       </div>
 
       {error && <p className="error-text">{error}</p>}
+
+      {notice && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '18px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 'calc(100% - 32px)',
+            maxWidth: '460px',
+            padding: '12px 14px',
+            borderRadius: '14px',
+            fontSize: '14px',
+            fontWeight: '600',
+            lineHeight: 1.4,
+            boxShadow: '0 12px 26px rgba(0,0,0,0.12)',
+            zIndex: 10002,
+            ...noticeStyles
+          }}
+        >
+          {notice.message}
+        </div>
+      )}
 
       {DAYS.map((day) => {
         const dayPace = getDayPace(schedule?.[day]);
@@ -811,14 +972,16 @@ try {
         );
       })}
 
-      {Object.keys(meals || {}).length === 7 && !shoppingList && (
+      {shouldShowShoppingListButton && (
         <div
           style={{
             position: 'sticky',
             bottom: '16px',
             marginTop: '20px',
             paddingTop: '12px',
-            background: 'linear-gradient(to top, #f7f7f5 60%, transparent)'
+            paddingBottom: '4px',
+            background: 'linear-gradient(to top, #f7f7f5 60%, transparent)',
+            zIndex: 20
           }}
         >
           <button
@@ -832,7 +995,7 @@ try {
               display: 'block'
             }}
           >
-            {shoppingLoading ? 'building your list...' : 'generate shopping list'}
+            {shoppingLoading ? 'creating your list...' : '🛒 Create Shopping List'}
           </button>
         </div>
       )}
@@ -1140,27 +1303,6 @@ try {
               }
             `}
           </style>
-        </div>
-      )}
-
-      {toast && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: '24px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: '#1F2937',
-            color: '#fff',
-            padding: '12px 16px',
-            borderRadius: '999px',
-            fontSize: '14px',
-            fontWeight: '500',
-            boxShadow: '0 10px 24px rgba(0,0,0,0.16)',
-            zIndex: 10001
-          }}
-        >
-          {toast}
         </div>
       )}
     </div>
