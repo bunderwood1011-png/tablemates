@@ -85,10 +85,44 @@ function MainApp({ user, isBetaUser }) {
     loadProfiles();
   }, [user]);
   useEffect(() => {
-  if (isBetaUser) {
+  if (!isBetaUser) return;
+
+  const seen = localStorage.getItem('tablemates_beta_welcome_seen') === 'true';
+
+  if (!seen) {
     setShowBetaWelcome(true);
   }
 }, [isBetaUser]);
+useEffect(() => {
+  if (!isBetaUser) return;
+
+  const seen = localStorage.getItem('tablemates_beta_welcome_seen') === 'true';
+
+  if (!seen) {
+    setShowBetaWelcome(true);
+  }
+}, [isBetaUser]);
+
+useEffect(() => {
+  const loadAccount = async () => {
+    const { data, error } = await supabase
+      .from('accounts')
+      .select('beta_user')
+      .eq('user_id', user.id)
+      .single();
+
+    if (error) {
+      console.error('Error loading account:', error);
+      return;
+    }
+
+    setIsBetaUser(!!data?.beta_user);
+  };
+
+  if (user?.id) {
+    loadAccount();
+  }
+}, [user]);
 
   useEffect(() => {
     const loadMeals = async () => {
