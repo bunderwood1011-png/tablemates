@@ -189,16 +189,23 @@ function ThisWeek({
   profilesUpdatedAfterMeals,
   onMealsRegenerated
 }) {
-  const [shoppingList, setShoppingList] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [swapping, setSwapping] = useState(null);
-  const [shoppingLoading, setShoppingLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [modal, setModal] = useState(null);
-  const [loadingSteps, setLoadingSteps] = useState(null);
-  const [showIngredients, setShowIngredients] = useState(false);
-  const [showProfileUpdatePrompt, setShowProfileUpdatePrompt] = useState(false);
-  const [notice, setNotice] = useState(null);
+const [shoppingList, setShoppingList] = useState(null);
+const [loading, setLoading] = useState(false);
+const [swapping, setSwapping] = useState(null);
+const [shoppingLoading, setShoppingLoading] = useState(false);
+const [error, setError] = useState(null);
+const [modal, setModal] = useState(null);
+const [loadingSteps, setLoadingSteps] = useState(null);
+const [showIngredients, setShowIngredients] = useState(false);
+const [showProfileUpdatePrompt, setShowProfileUpdatePrompt] = useState(false);
+const [notice, setNotice] = useState(null);
+const [shoppingMessage, setShoppingMessage] = useState('creating your list...');
+
+const slowMessages = [
+  'Sorry, grabbed a cart with a wonky wheel...',
+  'Checking the aisles...',
+  'Double-checking the pantry...'
+];
 
   const extractJson = (text) => {
     if (!text || typeof text !== 'string') {
@@ -402,7 +409,7 @@ Avoid:
     if (pace === 'moderate') {
       return `
 MODERATE DAY MEAL RULES:
-- Choose dinners that realistically take 60 minutes or less total.
+- Choose dinners that realistically take 45 minutes or less total.
 - Moderate-effort meals are okay, including pasta, burgers with sides, skillet meals, protein + side dinners, enchiladas, and simple oven meals.
 - Avoid very long roasts, brisket, pot roast, or anything that takes more than 60 minutes total.
 - Keep meals practical for a normal weeknight.
@@ -474,7 +481,17 @@ RELAXED DAY MEAL RULES:
 
     setLoading(false);
   };
-
+const skipMealForDay = (day) => {
+  setMeals((prev) => ({
+    ...prev,
+    [day]: {
+      skipped: true,
+      name: 'Dinner Planned Elsewhere',
+      time: '',
+      description: 'No meal planned for this night.'
+    }
+  }));
+};
   const swapMeal = async (day) => {
     setSwapping(day);
     setModal(null);
@@ -591,29 +608,50 @@ RELAXED DAY MEAL RULES:
     setSwapping(null);
   };
 
-  const generateShoppingList = async () => {
-    setShoppingLoading(true);
-    setError(null);
+const generateShoppingList = async () => {
+  setShoppingLoading(true);
+  setError(null);
+  setShoppingMessage('Creating your list...');
 
-    try {
-      const mealNames = DAYS.map((d) => `${d}: ${meals[d] ? meals[d].name : 'none'}`).join(', ');
+  let messageTimer;
+  let messageInterval;
 
-      const prompt =
-        `Generate a shopping list for these 7 dinners: ${mealNames}. ` +
-        'Group the list by store section. ' +
-        'Return ONLY valid JSON: ' +
-        '{"sections":[{"name":"produce","items":[{"item":"","amount":"","meal":""}]},{"name":"meat and protein","items":[]},{"name":"dairy","items":[]},{"name":"pantry","items":[]}]}';
+  try {
+    messageTimer = setTimeout(() => {
+      let index = 0;
+      setShoppingMessage(slowMessages[index]);
 
-      const result = await callAI(prompt);
-      setShoppingList(result.sections || []);
-      onShoppingListReady(result.sections || []);
-    } catch (err) {
-      console.error('generateShoppingList error:', err);
-      setError(err.message || 'Could not generate shopping list. Please try again.');
-    }
+      messageInterval = setInterval(() => {
+        index = (index + 1) % slowMessages.length;
+        setShoppingMessage(slowMessages[index]);
+      }, 2500);
+    }, 4000);
 
+    const mealNames = DAYS
+      .filter((d) => meals[d] && !meals[d]?.skipped)
+      .map((d) => `${d}: ${meals[d].name}`)
+      .join(', ');
+
+    const prompt =
+      `Generate a shopping list for these dinners: ${mealNames}. ` +
+      'Group the list by store section. ' +
+      'Return ONLY valid JSON: ' +
+      '{"sections":[{"name":"produce","items":[{"item":"","amount":"","meal":""}]},{"name":"meat and protein","items":[]},{"name":"dairy","items":[]},{"name":"pantry","items":[]}]}';
+
+    const result = await callAI(prompt);
+
+    setShoppingList(result.sections || []);
+    onShoppingListReady(result.sections || []);
+  } catch (err) {
+    console.error('generateShoppingList error:', err);
+    setError(err.message || 'Could not generate shopping list. Please try again.');
+  } finally {
+    clearTimeout(messageTimer);
+    clearInterval(messageInterval);
     setShoppingLoading(false);
-  };
+    setShoppingMessage('Creating your list...');
+  }
+};
 
   const openRecipeModal = async (day) => {
     setLoadingSteps(day);
@@ -727,44 +765,44 @@ RELAXED DAY MEAL RULES:
   };
 
   useEffect(() => {
-    if (profilesUpdatedAfterMeals && Object.keys(meals || {}).length > 0) {
-      setShowProfileUpdatePrompt(true);
+  if (profilesUpdatedAfterMeals && Object.keys(meals || {}).length > 0) {
+    setShowProfileUpdatePrompt(true);
+  }
+}, [profilesUpdatedAfterMeals, meals]);
+
+useEffect(() => {
+  try {
+    const raw = sessionStorage.getItem(NOTICE_STORAGE_KEY);
+    if (!raw) return;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed?.message) return;
+
+    const isFresh = Date.now() - (parsed.createdAt || 0) < 5000;
+    if (isFresh) {
+      setNotice(parsed);
+    } else {
+      sessionStorage.removeItem(NOTICE_STORAGE_KEY);
     }
-  }, [profilesUpdatedAfterMeals, meals]);
+  } catch {
+    // ignore storage issues
+  }
+}, []);
 
-  useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem(NOTICE_STORAGE_KEY);
-      if (!raw) return;
+useEffect(() => {
+  if (!notice?.id) return;
 
-      const parsed = JSON.parse(raw);
-      if (!parsed?.message) return;
+  const timer = setTimeout(() => {
+    clearNotice();
+  }, 3200);
 
-      const isFresh = Date.now() - (parsed.createdAt || 0) < 5000;
-      if (isFresh) {
-        setNotice(parsed);
-      } else {
-        sessionStorage.removeItem(NOTICE_STORAGE_KEY);
-      }
-    } catch {
-      // ignore storage issues
-    }
-  }, []);
+  return () => clearTimeout(timer);
+}, [notice?.id]);
 
-  useEffect(() => {
-    if (!notice?.id) return;
-
-    const timer = setTimeout(() => {
-      clearNotice();
-    }, 3200);
-
-    return () => clearTimeout(timer);
-  }, [notice?.id]);
-
-  useEffect(() => {
-    localStorage.setItem('tm_this_week_meals', JSON.stringify(meals || {}));
-    window.dispatchEvent(new Event('tablemates-week-updated'));
-  }, [meals]);
+useEffect(() => {
+  localStorage.setItem('tm_this_week_meals', JSON.stringify(meals || {}));
+  window.dispatchEvent(new Event('tablemates-week-updated'));
+}, [meals]);
 
   const paceColor = { relaxed: '#1D9E75', moderate: '#BA7517', busy: '#A32D2D' };
   const paceBg = { relaxed: '#E1F5EE', moderate: '#FAEEDA', busy: '#FCEBEB' };
@@ -797,13 +835,13 @@ RELAXED DAY MEAL RULES:
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '1rem', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
         {Object.keys(meals).length === 0 ? (
           <button
             className="suggest-btn"
             onClick={suggestWeek}
             disabled={loading}
-            style={{ margin: 0 }}
+            style={{ margin: 0, flex: 1, padding: '14px' }}
           >
             {loading ? 'planning your week...' : "suggest this week's dinners"}
           </button>
@@ -815,26 +853,15 @@ RELAXED DAY MEAL RULES:
               disabled={loading}
               style={{ margin: 0, flex: 1 }}
             >
-              {loading ? 'replanning...' : 'replan whole week'}
+              {loading ? 'Replanning...' : 'Replan whole week'}
             </button>
 
             <button
-              onClick={onSaveWeek}
-              style={{
-                flexShrink: 0,
-                padding: '13px 16px',
-                background: 'transparent',
-                color: '#1D9E75',
-                border: '1.5px solid #1D9E75',
-                borderRadius: '14px',
-                fontSize: '13px',
-                fontWeight: '500',
-                cursor: 'pointer',
-                fontFamily: 'inherit'
-              }}
-            >
-              Save
-            </button>
+  className="week-save-btn"
+  onClick={onSaveWeek}
+>
+  Save
+</button>
           </>
         )}
       </div>
@@ -864,113 +891,94 @@ RELAXED DAY MEAL RULES:
         </div>
       )}
 
-      {DAYS.map((day) => {
-        const dayPace = getDayPace(schedule?.[day]);
+     {DAYS.map((day) => {
+  const dayPace = getDayPace(schedule?.[day]);
 
-        return (
-          <div key={day} className="week-meal-card">
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '10px'
-              }}
-            >
-              <div style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a' }}>
-                {day}
-              </div>
+  return (
+    <div key={day} className="week-meal-card polished-meal-card">
+      <div className="meal-card-top">
+  <div className="meal-day">{day}</div>
 
-              {meals[day] && (
-                <span
-                  className="pace-badge"
-                  style={{
-                    background: paceBg[dayPace],
-                    color: paceColor[dayPace]
-                  }}
-                >
-                  {dayPace}
-                </span>
-              )}
+  {meals[day] && !meals[day]?.skipped && (
+  <span
+    className="pace-badge polished-pace-badge"
+    style={{
+      background: paceBg[dayPace],
+      color: paceColor[dayPace]
+    }}
+  >
+    {dayPace}
+  </span>
+)}
 
-              {meals[day] && (
-                <div style={{ fontSize: '12px', color: '#aaa', fontWeight: '500' }}>
-                  {meals[day].time}
-                </div>
+{meals[day] && !meals[day]?.skipped && (
+  <div className="meal-time">{meals[day].time}</div>
+)}
+</div>
+
+      {meals[day] ? (
+        <div>
+          <div className="meal-name">
+  {meals[day]?.skipped ? 'Dinner Planned Elsewhere' : meals[day].name}
+</div>
+
+{meals[day]?.description && (
+  <div className="meal-description">
+    {meals[day].description}
+  </div>
+)}
+
+          {hasMods(day) && (
+            <div className="mods-section" style={{ marginBottom: '12px' }}>
+              <div className="mods-label">modifications</div>
+              {meals[day].modifications.map((mod, j) =>
+                mod.person ? (
+                  <div key={j} className="mod-row">
+                    <div className="mod-avatar">{mod.person[0]}</div>
+                    <div className="mod-text">
+                      <strong>{mod.person}</strong> — {mod.note}
+                    </div>
+                  </div>
+                ) : null
               )}
             </div>
+          )}
 
-            {meals[day] ? (
-              <div>
-                <div
-                  style={{
-                    fontSize: '15px',
-                    fontWeight: '600',
-                    color: '#1a1a1a',
-                    marginBottom: '6px',
-                    lineHeight: '1.3'
-                  }}
-                >
-                  {meals[day].name}
-                </div>
+          <div className="meal-actions-row">
+           <button
+  className="action-btn"
+  onClick={() => openRecipeModal(day)}
+  disabled={loadingSteps === day || meals[day]?.skipped}
+  style={{ flex: 1 }}
+>
+  {loadingSteps === day ? 'loading...' : 'how to cook'}
+</button>
 
-                {meals[day]?.description && (
-                  <div
-                    style={{
-                      fontSize: '13px',
-                      color: '#6B7280',
-                      lineHeight: '1.45',
-                      marginBottom: '12px'
-                    }}
-                  >
-                    {meals[day].description}
-                  </div>
-                )}
-
-                {hasMods(day) && (
-                  <div className="mods-section" style={{ marginBottom: '12px' }}>
-                    <div className="mods-label">modifications</div>
-                    {meals[day].modifications.map((mod, j) =>
-                      mod.person ? (
-                        <div key={j} className="mod-row">
-                          <div className="mod-avatar">{mod.person[0]}</div>
-                          <div className="mod-text">
-                            <strong>{mod.person}</strong> — {mod.note}
-                          </div>
-                        </div>
-                      ) : null
-                    )}
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    className="action-btn"
-                    onClick={() => openRecipeModal(day)}
-                    disabled={loadingSteps === day}
-                    style={{ flex: 1 }}
-                  >
-                    {loadingSteps === day ? 'loading...' : 'how to cook'}
-                  </button>
-
-                  <button
-                    className="action-btn swap-btn"
-                    onClick={() => swapMeal(day)}
-                    disabled={swapping === day}
-                    style={{ flex: 1 }}
-                  >
-                    {swapping === day ? 'swapping...' : 'swap meal'}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="week-meal-empty">
-                {loading ? 'thinking...' : 'not yet planned'}
-              </div>
-            )}
+<button
+  className="action-btn swap-btn"
+  onClick={() => swapMeal(day)}
+  disabled={swapping === day || meals[day]?.skipped}
+  style={{ flex: 1 }}
+>
+  {swapping === day ? 'swapping...' : 'swap meal'}
+</button>
+            <button
+    className="action-btn"
+    onClick={() => skipMealForDay(day)}
+    style={{ flex: 1 }}
+  >
+    skip night
+  </button>
           </div>
-        );
-      })}
+        </div>
+      ) : (
+        <div className="week-meal-empty">
+          {loading ? 'thinking...' : 'not yet planned'}
+        </div>
+      )}
+    </div>
+  );
+})}
 
       {shouldShowShoppingListButton && (
         <div
@@ -995,7 +1003,7 @@ RELAXED DAY MEAL RULES:
               display: 'block'
             }}
           >
-            {shoppingLoading ? 'creating your list...' : '🛒 Create Shopping List'}
+            {shoppingLoading ? shoppingMessage : '🛒 Create Shopping List'}
           </button>
         </div>
       )}
@@ -1180,63 +1188,52 @@ RELAXED DAY MEAL RULES:
         </div>
       )}
 
-      {shoppingLoading && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(247,247,245,0.85)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9998,
-            padding: '24px'
-          }}
-        >
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: '24px',
-              padding: '30px',
-              textAlign: 'center',
-              boxShadow: '0 12px 30px rgba(0,0,0,0.08)',
-              maxWidth: '340px',
-              width: '100%'
-            }}
-          >
-            <div
-              style={{
-                fontSize: '36px',
-                animation: 'forkBounce 1s infinite'
-              }}
-            >
-              🛒
-            </div>
+    {shoppingLoading && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(247,247,245,0.85)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 9998,
+      padding: '24px'
+    }}
+  >
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: '24px',
+        padding: '30px',
+        textAlign: 'center',
+        boxShadow: '0 12px 30px rgba(0,0,0,0.08)',
+        maxWidth: '340px',
+        width: '100%'
+      }}
+    >
+      <div
+        style={{
+          fontSize: '36px',
+          animation: 'forkBounce 1s infinite'
+        }}
+      >
+        🛒
+      </div>
 
-            <div
-              style={{
-                marginTop: '12px',
-                fontSize: '16px',
-                fontWeight: '600',
-                color: '#1a1a1a'
-              }}
-            >
-              🥕 Summoning the grocery gods
-            </div>
-
-            <div
-              style={{
-                marginTop: '8px',
-                fontSize: '13px',
-                color: '#777',
-                lineHeight: '1.5'
-              }}
-            >
-              they&apos;re arguing about how many onions you actually need…
-            </div>
-          </div>
-        </div>
-      )}
+      <div
+        style={{
+          marginTop: '12px',
+          fontSize: '16px',
+          fontWeight: '600',
+          color: '#1a1a1a'
+        }}
+      >
+        {shoppingMessage}
+      </div>
+    </div>
+  </div>
+)}
 
       {loading && (
         <div
@@ -1279,7 +1276,7 @@ RELAXED DAY MEAL RULES:
                 color: '#1a1a1a'
               }}
             >
-              Searching through my grandma’s recipe box
+              Searching through my grandma’s recipe box...
             </div>
 
             <div

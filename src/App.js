@@ -9,6 +9,7 @@ function App() {
   const [session, setSession] = useState(null);
   const [loadingSession, setLoadingSession] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
+  const [isBetaUser, setIsBetaUser] = useState(false);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(
     localStorage.getItem('tablemates_onboarding_seen') === 'true'
   );
@@ -17,13 +18,27 @@ function App() {
     let mounted = true;
 
     const loadSession = async () => {
-      const { data } = await supabase.auth.getSession();
+  const { data } = await supabase.auth.getSession();
 
-      if (mounted) {
-        setSession(data.session);
-        setLoadingSession(false);
-      }
-    };
+  console.log('session:', data.session);
+
+  if (data.session) {
+    const { data: account } = await supabase
+      .from('accounts')
+      .select('beta_user')
+      .eq('user_id', data.session.user.id)
+      .single();
+
+    if (account?.beta_user) {
+      setIsBetaUser(true);
+    }
+  }
+
+  if (mounted) {
+    setSession(data.session);
+    setLoadingSession(false);
+  }
+};
 
     loadSession();
 
@@ -75,7 +90,7 @@ function App() {
     return <AuthScreen />;
   }
 
-  return <MainApp user={session.user} />;
+ return <MainApp user={session.user} isBetaUser={isBetaUser} />;
 }
 
 export default App;

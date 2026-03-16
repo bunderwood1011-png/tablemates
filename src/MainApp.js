@@ -19,14 +19,14 @@ const DEFAULT_SCHEDULE = {
   Sunday: 'relaxed'
 };
 
-function MainApp({ user }) {
+function MainApp({ user, isBetaUser }) {
   const [showSplash, setShowSplash] = useState(true);
   const [activeTab, setActiveTab] = useState('week');
   const [profilesUpdatedAfterMeals, setProfilesUpdatedAfterMeals] = useState(false);
   const [highlightedRecipe, setHighlightedRecipe] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-
+  const [showBetaWelcome, setShowBetaWelcome] = useState(false);
   const [members, setMembersRaw] = useState([]);
   const [meals, setMealsRaw] = useState({});
   const [schedule, setScheduleRaw] = useState(DEFAULT_SCHEDULE);
@@ -50,7 +50,10 @@ function MainApp({ user }) {
   });
 
  const [recipes, setRecipes] = useState([]);
- 
+ const handleCloseBetaWelcome = () => {
+  localStorage.setItem('tablemates_beta_welcome_seen', 'true');
+  setShowBetaWelcome(false);
+};
 
   const weekKey = useMemo(() => {
     const now = new Date();
@@ -78,9 +81,14 @@ function MainApp({ user }) {
 
       setMembersRaw(data || []);
     };
-
+  
     loadProfiles();
   }, [user]);
+  useEffect(() => {
+  if (isBetaUser) {
+    setShowBetaWelcome(true);
+  }
+}, [isBetaUser]);
 
   useEffect(() => {
     const loadMeals = async () => {
@@ -401,9 +409,28 @@ function MainApp({ user }) {
           </button>
 
           <div style={{ textAlign: 'center' }}>
-  <h1 className="logo">table<span>mates</span></h1>
+  <h1 className="logo">
+    table<span>mates</span>
+  </h1>
+
   <p className="tagline">dinner, handled.</p>
-          </div>
+   {isBetaUser && (
+    <div
+      style={{
+        fontSize: '10px',
+        background: '#E1F5EE',
+        color: '#1D9E75',
+        padding: '3px 8px',
+        borderRadius: '999px',
+        display: 'inline-block',
+        marginTop: '4px',
+        fontWeight: 600
+      }}
+    >
+       Beta tester  🎉 
+    </div>
+  )}
+</div>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
             <button
@@ -513,7 +540,7 @@ function MainApp({ user }) {
         </button>
       </div>
 
-      <div className="content">
+            <div className="content">
         {activeTab === 'profiles' && <Profiles members={members} setMembers={setMembers} />}
         {activeTab === 'schedule' && <Schedule schedule={schedule} setSchedule={setSchedule} />}
         {activeTab === 'week' && (
@@ -555,6 +582,50 @@ function MainApp({ user }) {
           />
         )}
       </div>
+
+      {showBetaWelcome && (
+        <div className="modal-overlay" onClick={handleCloseBetaWelcome}>
+          <div
+            className="modal-sheet"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '420px' }}
+          >
+            <div className="modal-handle"></div>
+
+            <div
+              style={{
+                fontSize: '24px',
+                fontWeight: '700',
+                color: '#1F2937',
+                marginBottom: '10px',
+                textAlign: 'center'
+              }}
+            >
+              🎉 Welcome, Beta Tester
+            </div>
+
+            <div
+              style={{
+                fontSize: '15px',
+                lineHeight: 1.6,
+                color: '#6B7280',
+                marginBottom: '22px',
+                textAlign: 'center'
+              }}
+            >
+              You’re part of the founding Tablemates beta. Thanks for helping shape the app early — you’ll get free access for life.
+            </div>
+
+            <button
+              className="modal-keep"
+              onClick={handleCloseBetaWelcome}
+              style={{ width: '100%' }}
+            >
+              Let’s do dinner
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
