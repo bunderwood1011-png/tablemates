@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
+import { logError } from './utils/logError';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -230,7 +231,7 @@ const slowMessages = [
   };
 
   const callAI = async (prompt) => {
-    const response = await fetch('/api/ai', {
+    const response = await fetch('https://tablemates-psi.vercel.app/api/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt })
@@ -462,25 +463,38 @@ RELAXED DAY MEAL RULES:
         'Return ONLY valid JSON matching this template, and fill in every field exactly: ' +
         JSON_TEMPLATE;
 
-      const result = await callAI(prompt);
-      const generatedMeals = result.meals || {};
-      const validatedMeals = await validateAndFixMeals(generatedMeals);
-      const impact = getMealPlanImpactSummary(previousMeals, validatedMeals);
-      const message = buildMealPlanUpdateMessage({
-        action: 'week',
-        hadShoppingList,
-        clearedModDays: impact.clearedModDays
-      });
+const result = await callAI(prompt);
+const generatedMeals = result.meals || {};
+const validatedMeals = await validateAndFixMeals(generatedMeals);
+const impact = getMealPlanImpactSummary(previousMeals, validatedMeals);
+const message = buildMealPlanUpdateMessage({
+  action: 'week',
+  hadShoppingList,
+  clearedModDays: impact.clearedModDays
+});
 
-      showNotice(message, 'info');
-      setMeals(validatedMeals);
-    } catch (err) {
-      console.error('suggestWeek error:', err);
-      setError(err.message || 'Could not generate meals. Please try again.');
-    }
+showNotice(message, 'info');
+setMeals(validatedMeals);
+} catch (err) {
+  console.error('suggestWeek error:', err);
 
-    setLoading(false);
-  };
+  await logError({
+    userId: null,
+    action: 'generate_weekly_meals',
+    error: err,
+    context: {
+      hadShoppingList,
+      previousMealCount: Object.keys(previousMeals || {}).length,
+      generatedMealCount: Object.keys(meals || {}).length,
+      daysRequested: DAYS.length,
+    },
+  });
+
+  setError(err.message || 'Could not generate meals. Please try again.');
+}
+
+setLoading(false);
+};
 const skipMealForDay = (day) => {
   setMeals((prev) => ({
     ...prev,
@@ -493,70 +507,85 @@ const skipMealForDay = (day) => {
   }));
 };
   const swapMeal = async (day) => {
-    setSwapping(day);
-    setModal(null);
-    setError(null);
+  setSwapping(day);
+  setModal(null);
+  setError(null);
 
-    const previousMeal = meals?.[day];
-    const hadShoppingList = Array.isArray(shoppingList) && shoppingList.length > 0;
-    const previousMealHadMods =
-      Array.isArray(previousMeal?.modifications) &&
-      previousMeal.modifications.some((mod) => mod.person);
+  const previousMeal = meals?.[day];
+  const hadShoppingList = Array.isArray(shoppingList) && shoppingList.length > 0;
+  const previousMealHadMods =
+    Array.isArray(previousMeal?.modifications) &&
+    previousMeal.modifications.some((mod) => mod.person);
+  const pace = getDayPace(schedule?.[day]);
 
-    try {
-      const current = meals[day] ? meals[day].name : '';
-      const otherMealNames = DAYS.filter((d) => d !== day)
-        .map((d) => meals[d]?.name)
-        .filter(Boolean)
-        .join(', ');
+  try {
+    const current = meals[day] ? meals[day].name : '';
+    const otherMealNames = DAYS.filter((d) => d !== day)
+      .map((d) => meals[d]?.name)
+      .filter(Boolean)
+      .join(', ');
 
-      const familyInfo = buildFamilyInfo();
-      const pace = getDayPace(schedule?.[day]);
-      const maxMinutes = getMaxMinutesForPace(pace);
-      const paceRules = getPaceMealRules(pace);
+    const familyInfo = buildFamilyInfo();
+    const maxMinutes = getMaxMinutesForPace(pace);
+    const paceRules = getPaceMealRules(pace);
 
-      const timeLimit =
-        maxMinutes === Infinity
-          ? 'any length is allowed, but keep it practical'
-          : `${maxMinutes} minutes or less total, including prep and cook time`;
+    const timeLimit =
+      maxMinutes === Infinity
+        ? 'any length is allowed, but keep it practical'
+        : `${maxMinutes} minutes or less total, including prep and cook time`;
 
-      const prompt =
-        `Suggest one dinner for ${day} night. ` +
-        `This is a ${pace} day. ` +
-        `${paceRules}\n` +
-        `Time limit: ${timeLimit}. ` +
-        'The time must equal the REAL total cooking time including prep and cook time. ' +
-        'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
-        'Do NOT return times under the real cooking time. ' +
-        'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
-        'Do not label oven meals as 20 minutes or less. ' +
-        'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
-        `Family:\n${familyInfo}\n` +
-        (current ? `Do NOT suggest this current meal: ${current}. ` : '') +
-        (otherMealNames ? `Do NOT repeat these meals already in the week: ${otherMealNames}. ` : '') +
-        'Return ONLY valid JSON: {"name":"","time":"","description":"","modifications":[]}';
+    const prompt =
+      `Suggest one dinner for ${day} night. ` +
+      `This is a ${pace} day. ` +
+      `${paceRules}\n` +
+      `Time limit: ${timeLimit}. ` +
+      'The time must equal the REAL total cooking time including prep and cook time. ' +
+      'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
+      'Do NOT return times under the real cooking time. ' +
+      'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
+      'Do not label oven meals as 20 minutes or less. ' +
+      'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
+      `Family:\n${familyInfo}\n` +
+      (current ? `Do NOT suggest this current meal: ${current}. ` : '') +
+      (otherMealNames ? `Do NOT repeat these meals already in the week: ${otherMealNames}. ` : '') +
+      'Return ONLY valid JSON: {"name":"","time":"","description":"","modifications":[]}';
 
-      const result = await callAI(prompt);
+   console.log('SWAP TRIGGERED');
 
-      if (!mealFitsPace(result, pace)) {
-        throw new Error(`That swap did not fit the ${pace} time limit. Please try again.`);
-      }
+const result = await callAI(prompt);
 
-      const message = buildMealPlanUpdateMessage({
-        action: 'swap',
-        hadShoppingList,
-        clearedModDays: previousMealHadMods ? 1 : 0
-      });
+if (!mealFitsPace(result, pace)) {
+  throw new Error(`That swap did not fit the ${pace} time limit. Please try again.`);
+}
 
-      showNotice(message, 'info');
-      setMeals((prev) => ({ ...prev, [day]: result }));
-    } catch (err) {
-      console.error('swapMeal error:', err);
-      setError(err.message || 'Swap failed. Please try again.');
-    }
+    const message = buildMealPlanUpdateMessage({
+      action: 'swap',
+      hadShoppingList,
+      clearedModDays: previousMealHadMods ? 1 : 0
+    });
 
-    setSwapping(null);
-  };
+    showNotice(message, 'info');
+    setMeals((prev) => ({ ...prev, [day]: result }));
+  } catch (err) {
+  console.error('swapMeal error:', err);
+
+  await logError({
+    userId: null,
+    action: 'swap_meal',
+    error: err,
+    context: {
+      day,
+      previousMeal: previousMeal?.name || null,
+      pace,
+      hadShoppingList,
+    },
+  });
+
+  setError(err.message || 'Swap failed. Please try again.');
+} finally {
+  setSwapping(null);
+}
+};
 
   const refreshAllMods = async () => {
     setSwapping('all_mods');
