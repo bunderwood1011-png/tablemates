@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from './lib/supabase';
+import { supabase } from './supabaseClient';
 import { logError } from './utils/logError';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -201,6 +201,8 @@ const [showIngredients, setShowIngredients] = useState(false);
 const [showProfileUpdatePrompt, setShowProfileUpdatePrompt] = useState(false);
 const [notice, setNotice] = useState(null);
 const [shoppingMessage, setShoppingMessage] = useState('creating your list...');
+const [swapFeedbackOther, setSwapFeedbackOther] = useState({});
+const [showSwapFeedback, setShowSwapFeedback] = useState({});
 
 const slowMessages = [
   'Sorry, grabbed a cart with a wonky wheel...',
@@ -253,33 +255,84 @@ const slowMessages = [
 
     return extractJson(data.text);
   };
+const showNotice = (message, type = 'info') => {
+  setNotice({ message, type });
 
-  const showNotice = (message, tone = 'info') => {
-    const payload = {
-      id: Date.now(),
-      message,
-      tone,
-      createdAt: Date.now()
-    };
+  try {
+    window.localStorage.setItem(
+      NOTICE_STORAGE_KEY,
+      JSON.stringify({ message, type })
+    );
+  } catch (err) {
+    console.error('Could not save notice:', err);
+  }
+};
 
-    setNotice(payload);
+const clearNotice = () => {
+  setNotice(null);
 
-    try {
-      sessionStorage.setItem(NOTICE_STORAGE_KEY, JSON.stringify(payload));
-    } catch {
-      // ignore storage issues
+  try {
+    window.localStorage.removeItem(NOTICE_STORAGE_KEY);
+  } catch (err) {
+    console.error('Could not clear notice:', err);
+  }
+};
+ const submitSwapFeedback = async ({ day, mealName, reason, text = '' }) => {
+  try {
+
+    console.log('SUBMITTING FEEDBACK', { day, mealName, reason, text });
+
+    const { data, error } = await supabase
+      .from('meal_feedback')
+      .insert([
+        {
+          user_id: null,
+          day,
+          meal_name: mealName,
+          feedback_reason: reason,
+          feedback_text: text,
+          source: 'swap',
+        },
+      ])
+      .select();
+
+    if (error) {
+      console.error('meal_feedback insert error:', error);
+      throw error;
     }
-  };
 
-  const clearNotice = () => {
-    setNotice(null);
+    console.log('FEEDBACK SAVED', data);
 
-    try {
-      sessionStorage.removeItem(NOTICE_STORAGE_KEY);
-    } catch {
-      // ignore storage issues
-    }
-  };
+    setShowSwapFeedback((prev) => ({
+      ...prev,
+      [day]: false,
+    }));
+
+    setSwapFeedbackOther((prev) => ({
+      ...prev,
+      [day]: false,
+      [`${day}_text`]: '',
+    }));
+
+    showNotice('Thanks for the feedback.', 'info');
+  } catch (err) {
+    console.error('submitSwapFeedback error:', err);
+
+    await logError({
+      userId: null,
+      action: 'submit_swap_feedback',
+      error: err,
+      context: {
+        day,
+        mealName,
+        reason,
+        text,
+      },
+    });
+
+    setError(err.message || 'Could not save feedback. Please try again.');
+  }
+};
 
   const buildFamilyInfo = () => {
     return members
@@ -546,47 +599,85 @@ const skipMealForDay = (day) => {
       'Do not label oven meals as 20 minutes or less. ' +
       'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
       `Family:\n${familyInfo}\n` +
-      (current ? `Do NOT suggest this current meal: ${current}. ` : '') +
-      (otherMealNames ? `Do NOT repeat these meals already in the week: ${otherMealNames}. ` : '') +
-      'Return ONLY valid JSON: {"name":"","time":"","description":"","modifications":[]}';
+      (current
+        ? `The current meal is: ${current}. You MUST NOT suggest this meal or anything very similar to it. `
+        : '') +
+      (otherMealNames
+        ? `Meals already planned this week: ${otherMealNames}. You MUST suggest something clearly different in main protein, cuisine, and flavor profile. Do NOT repeat or slightly modify these meals. `
+        : '') +
+      'The new meal must feel distinctly different from the rest of the week. Avoid repeating similar ingredients, cooking styles, or cuisines. ' +
+      'Return ONLY valid JSON. Do not include markdown, bullet points, commentary, or extra text. The response must start with { and end with }. Use this exact format: {"name":"","time":"","description":"","modifications":[]}';
 
-   console.log('SWAP TRIGGERED');
+    console.log('SWAP TRIGGERED');
 
-const result = await callAI(prompt);
+    let result = await callAI(prompt);
 
-if (!mealFitsPace(result, pace)) {
-  throw new Error(`That swap did not fit the ${pace} time limit. Please try again.`);
-}
+    const existingMeals = DAYS
+      .filter((d) => d !== day)
+      .map((d) => meals[d]?.name?.toLowerCase())
+      .filter(Boolean);
+
+    const isTooSimilarMeal = (mealName) => {
+      const normalizedNewMeal = (mealName || '').toLowerCase().trim();
+
+      return existingMeals.some(
+        (meal) =>
+          normalizedNewMeal.includes(meal) || meal.includes(normalizedNewMeal)
+      );
+    };
+
+    if (isTooSimilarMeal(result?.name)) {
+      console.warn('Swap result was too similar, retrying once...');
+
+      const retryPrompt =
+        prompt +
+        ' The last result was too similar to the current week. Try again with a clearly different dinner idea using a different protein, cuisine, and flavor profile. Return ONLY valid JSON. Do not include markdown or extra text.';
+
+      result = await callAI(retryPrompt);
+
+      if (isTooSimilarMeal(result?.name)) {
+        throw new Error(
+          'That swap was too similar to meals already in your week. Please try again for a more different option.'
+        );
+      }
+    }
+
+    if (!mealFitsPace(result, pace)) {
+      throw new Error(`That swap did not fit the ${pace} time limit. Please try again.`);
+    }
 
     const message = buildMealPlanUpdateMessage({
       action: 'swap',
       hadShoppingList,
-      clearedModDays: previousMealHadMods ? 1 : 0
+      clearedModDays: previousMealHadMods ? 1 : 0,
     });
 
     showNotice(message, 'info');
     setMeals((prev) => ({ ...prev, [day]: result }));
+    setShowSwapFeedback((prev) => ({
+      ...prev,
+      [day]: true,
+    }));
   } catch (err) {
-  console.error('swapMeal error:', err);
+    console.error('swapMeal error:', err);
 
-  await logError({
-    userId: null,
-    action: 'swap_meal',
-    error: err,
-    context: {
-      day,
-      previousMeal: previousMeal?.name || null,
-      pace,
-      hadShoppingList,
-    },
-  });
+    await logError({
+      userId: null,
+      action: 'swap_meal',
+      error: err,
+      context: {
+        day,
+        previousMeal: previousMeal?.name || null,
+        pace,
+        hadShoppingList,
+      },
+    });
 
-  setError(err.message || 'Swap failed. Please try again.');
-} finally {
-  setSwapping(null);
-}
+    setError(err.message || 'Swap failed. Please try again.');
+  } finally {
+    setSwapping(null);
+  }
 };
-
   const refreshAllMods = async () => {
     setSwapping('all_mods');
     setError(null);
@@ -950,74 +1041,201 @@ useEffect(() => {
     {dayPace}
   </span>
 )}
-
 {meals[day] && !meals[day]?.skipped && (
   <div className="meal-time">{meals[day].time}</div>
 )}
 </div>
 
-      {meals[day] ? (
-        <div>
-          <div className="meal-name">
-  {meals[day]?.skipped ? 'Dinner Planned Elsewhere' : meals[day].name}
-</div>
+{meals[day] ? (
+  <div>
+    <div className="meal-name">
+      {meals[day]?.skipped ? 'Dinner Planned Elsewhere' : meals[day].name}
+    </div>
 
-{meals[day]?.description && (
-  <div className="meal-description">
-    {meals[day].description}
-  </div>
-)}
+    {meals[day]?.description && (
+      <div className="meal-description">
+        {meals[day].description}
+      </div>
+    )}
 
-          {hasMods(day) && (
-            <div className="mods-section" style={{ marginBottom: '12px' }}>
-              <div className="mods-label">modifications</div>
-              {meals[day].modifications.map((mod, j) =>
-                mod.person ? (
-                  <div key={j} className="mod-row">
-                    <div className="mod-avatar">{mod.person[0]}</div>
-                    <div className="mod-text">
-                      <strong>{mod.person}</strong> — {mod.note}
-                    </div>
-                  </div>
-                ) : null
-              )}
+    {hasMods(day) && (
+      <div className="mods-section" style={{ marginBottom: '12px' }}>
+        <div className="mods-label">modifications</div>
+        {meals[day].modifications.map((mod, j) =>
+          mod.person ? (
+            <div key={j} className="mod-row">
+              <div className="mod-avatar">{mod.person[0]}</div>
+              <div className="mod-text">
+                <strong>{mod.person}</strong> — {mod.note}
+              </div>
             </div>
-          )}
+          ) : null
+        )}
+      </div>
+    )}
 
-          <div className="meal-actions-row">
-           <button
-  className="action-btn"
-  onClick={() => openRecipeModal(day)}
-  disabled={loadingSteps === day || meals[day]?.skipped}
-  style={{ flex: 1 }}
->
-  {loadingSteps === day ? 'loading...' : 'how to cook'}
-</button>
+    <div className="meal-actions-row">
+  <button
+    type="button"
+    className="action-btn"
+    onClick={() => openRecipeModal(day)}
+    disabled={loadingSteps === day || meals[day]?.skipped}
+    style={{ flex: 1 }}
+  >
+    {loadingSteps === day ? 'loading...' : 'how to cook'}
+  </button>
 
-<button
-  className="action-btn swap-btn"
-  onClick={() => swapMeal(day)}
-  disabled={swapping === day || meals[day]?.skipped}
-  style={{ flex: 1 }}
->
-  {swapping === day ? 'swapping...' : 'swap meal'}
-</button>
-            <button
+  <button
+    type="button"
+    className="action-btn swap-btn"
+    onClick={() => swapMeal(day)}
+    disabled={swapping === day || meals[day]?.skipped}
+    style={{ flex: 1 }}
+  >
+    {swapping === day ? 'swapping...' : 'swap meal'}
+  </button>
+
+  <button
+    type="button"
     className="action-btn"
     onClick={() => skipMealForDay(day)}
     style={{ flex: 1 }}
   >
     skip night
   </button>
-          </div>
-        </div>
-      ) : (
-        <div className="week-meal-empty">
-          {loading ? 'thinking...' : 'not yet planned'}
-        </div>
-      )}
+</div>
+
+{!meals[day]?.skipped && showSwapFeedback[day] && (
+  <div style={{ marginTop: '10px' }}>
+    <div
+      style={{
+        fontSize: '13px',
+        color: '#6B7280',
+        marginBottom: '6px',
+        fontWeight: 600,
+      }}
+    >
+      Not a fit?
     </div>
-  );
+
+    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+      <button
+        type="button"
+        className="action-btn"
+        onClick={() =>
+          submitSwapFeedback({
+            day,
+            mealName: meals[day]?.name || '',
+            reason: 'too_long',
+          })
+        }
+      >
+        Too long
+      </button>
+
+      <button
+        type="button"
+        className="action-btn"
+        onClick={() =>
+          submitSwapFeedback({
+            day,
+            mealName: meals[day]?.name || '',
+            reason: 'dont_like_ingredients',
+          })
+        }
+      >
+        Don’t like ingredients
+      </button>
+
+      <button
+        type="button"
+        className="action-btn"
+        onClick={() =>
+          submitSwapFeedback({
+            day,
+            mealName: meals[day]?.name || '',
+            reason: 'not_kid_friendly',
+          })
+        }
+      >
+        Not kid-friendly
+      </button>
+
+      <button
+        type="button"
+        className="action-btn"
+        onClick={() =>
+          setSwapFeedbackOther((prev) => ({
+            ...prev,
+            [day]: !prev[day],
+          }))
+        }
+      >
+        Other
+      </button>
+    </div>
+
+    {swapFeedbackOther[day] && (
+      <div
+        style={{
+          marginTop: '6px',
+          display: 'flex',
+          gap: '6px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <input
+          type="text"
+          placeholder="Tell us why..."
+          value={swapFeedbackOther[`${day}_text`] || ''}
+          onChange={(e) =>
+            setSwapFeedbackOther((prev) => ({
+              ...prev,
+              [`${day}_text`]: e.target.value,
+            }))
+          }
+          style={{
+            flex: 1,
+            minWidth: '220px',
+            padding: '10px 12px',
+            borderRadius: '10px',
+            border: '1px solid #D1D5DB',
+            fontSize: '13px',
+          }}
+        />
+
+        <button
+          type="button"
+          className="action-btn"
+          onClick={() => {
+            submitSwapFeedback({
+              day,
+              mealName: meals[day]?.name || '',
+              reason: 'other',
+              text: swapFeedbackOther[`${day}_text`] || '',
+            });
+
+            setSwapFeedbackOther((prev) => ({
+              ...prev,
+              [day]: false,
+              [`${day}_text`]: '',
+            }));
+          }}
+        >
+          Submit
+        </button>
+      </div>
+    )}
+  </div>
+)}
+</div>
+) : (
+  <div className="week-meal-empty">
+    {loading ? 'thinking...' : 'not yet planned'}
+  </div>
+)}
+</div>
+);
 })}
 
       {shouldShowShoppingListButton && (
@@ -1046,6 +1264,7 @@ useEffect(() => {
             {shoppingLoading ? shoppingMessage : '🛒 Create Shopping List'}
           </button>
         </div>
+
       )}
 
       {modal && (
