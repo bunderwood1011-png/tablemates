@@ -3,6 +3,14 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({
       error: 'Method not allowed. Use POST.'
@@ -40,7 +48,7 @@ export default async function handler(req, res) {
         messages: [
           {
             role: 'user',
-            content: prompt
+            content: prompt.trim()
           }
         ]
       })
@@ -51,7 +59,7 @@ export default async function handler(req, res) {
     let data;
     try {
       data = JSON.parse(rawText);
-    } catch (parseError) {
+    } catch {
       console.error('Anthropic returned non-JSON:', rawText);
       return res.status(502).json({
         error: 'Anthropic returned non-JSON response',
@@ -67,12 +75,14 @@ export default async function handler(req, res) {
       });
     }
 
-    const textBlocks = Array.isArray(data?.content) ? data.content : [];
-    const text = textBlocks
-      .filter((block) => block?.type === 'text')
-      .map((block) => block.text)
-      .join('\n')
-      .trim();
+    const text =
+      Array.isArray(data?.content)
+        ? data.content
+            .filter((block) => block?.type === 'text')
+            .map((block) => block.text)
+            .join('\n')
+            .trim()
+        : '';
 
     if (!text) {
       console.error('No text returned from Anthropic:', data);

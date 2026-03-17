@@ -669,17 +669,28 @@ const generateShoppingList = async () => {
 
     const result = await callAI(prompt);
 
-    setShoppingList(result.sections || []);
-    onShoppingListReady(result.sections || []);
-  } catch (err) {
-    console.error('generateShoppingList error:', err);
-    setError(err.message || 'Could not generate shopping list. Please try again.');
-  } finally {
-    clearTimeout(messageTimer);
-    clearInterval(messageInterval);
-    setShoppingLoading(false);
-    setShoppingMessage('Creating your list...');
-  }
+setShoppingList(result.sections || []);
+onShoppingListReady(result.sections || []);
+} catch (err) {
+  console.error('generateShoppingList error:', err);
+
+  await logError({
+    userId: null,
+    action: 'generate_shopping_list',
+    error: err,
+    context: {
+      mealCount: Object.keys(meals || {}).length,
+      sectionCount: Array.isArray(shoppingList) ? shoppingList.length : 0,
+    },
+  });
+
+  setError(err.message || 'Could not generate shopping list. Please try again.');
+} finally {
+  clearTimeout(messageTimer);
+  clearInterval(messageInterval);
+  setShoppingLoading(false);
+  setShoppingMessage('Creating your list...');
+}
 };
 
   const openRecipeModal = async (day) => {
