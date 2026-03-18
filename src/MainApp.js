@@ -617,12 +617,6 @@ useEffect(() => {
   >
     recipes
   </button>
-  <button
-    className={'nav-btn' + (activeTab === 'pastweeks' ? ' active' : '')}
-    onClick={() => setActiveTab('pastweeks')}
-  >
-    past weeks
-  </button>
 </div>
 
 <div className="content">
@@ -663,13 +657,15 @@ useEffect(() => {
 
   {activeTab === 'recipes' && (
     <Recipes
-      recipes={recipes}
-      setRecipes={setRecipes}
-      highlightedRecipe={highlightedRecipe}
-      setHighlightedRecipe={setHighlightedRecipe}
-      meals={meals}
-      setMeals={setMeals}
-    />
+  recipes={recipes}
+  setRecipes={setRecipes}
+  highlightedRecipe={highlightedRecipe}
+  setHighlightedRecipe={setHighlightedRecipe}
+  meals={meals}
+  setMeals={setMeals}
+  savedWeeks={savedWeeks}
+  setSavedWeeks={setSavedWeeks}
+/>
   )}
 
   {activeTab === 'pastweeks' && (
