@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import './App.css';
-import Profiles from './Profiles';
-import Schedule from './Schedule';
+import MyHome from './MyHome';
+import AccountSupport from './AccountSupport';
 import ThisWeek from './ThisWeek';
 import ShoppingList from './ShoppingList';
 import PastWeeks from './PastWeeks';
 import Recipes from './Recipes';
 import Splash from './Splash';
-import { supabase } from './lib/supabase';
+import { supabase } from './supabaseClient';
 
 const DEFAULT_SCHEDULE = {
   Monday: 'relaxed',
@@ -86,15 +86,6 @@ function MainApp({ user }) {
     loadProfiles();
   }, [user]);
   useEffect(() => {
-  if (!isBetaUser) return;
-
-  const seen = localStorage.getItem('tablemates_beta_welcome_seen') === 'true';
-
-  if (!seen) {
-    setShowBetaWelcome(true);
-  }
-}, [isBetaUser]);
-useEffect(() => {
   if (!isBetaUser) return;
 
   const seen = localStorage.getItem('tablemates_beta_welcome_seen') === 'true';
@@ -400,271 +391,345 @@ useEffect(() => {
   const searchResults = getSearchResults();
 
   return (
-    <div className="app">
-      {showSplash && (
-        <Splash
-          onDone={() => {
-            setShowSplash(false);
-            setActiveTab('week');
-          }}
-        />
-      )}
+  <div className="app">
+    {showSplash && (
+      <Splash
+        onDone={() => {
+          setShowSplash(false);
+          setActiveTab('week');
+        }}
+      />
+    )}
 
-      <div className="header" style={{ marginBottom: '1.5rem' }}>
+    <div className="header" style={{ marginBottom: '1.5rem' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          marginBottom: '4px'
+        }}
+      >
+        <button
+          onClick={() => {
+            setShowSearch(!showSearch);
+            setSearchQuery('');
+          }}
+          style={{
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            background: showSearch ? '#1D9E75' : '#e8e8e8',
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            flexShrink: 0
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle
+              cx="7"
+              cy="7"
+              r="4.5"
+              stroke={showSearch ? 'white' : '#888'}
+              strokeWidth="1.5"
+            />
+            <path
+              d="M10.5 10.5L13 13"
+              stroke={showSearch ? 'white' : '#888'}
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+
+        <div style={{ textAlign: 'center' }}>
+          <h1 className="logo">
+            table<span>mates</span>
+          </h1>
+
+          <p className="tagline">dinner, handled.</p>
+
+          {isBetaUser && (
+            <div
+              style={{
+                fontSize: '10px',
+                background: '#E1F5EE',
+                color: '#1D9E75',
+                padding: '3px 8px',
+                borderRadius: '999px',
+                display: 'inline-block',
+                marginTop: '4px',
+                fontWeight: 600
+              }}
+            >
+              Beta tester 🎉
+            </div>
+          )}
+        </div>
+
         <div
           style={{
             display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            marginBottom: '4px'
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '6px',
+            flexShrink: 0
           }}
         >
           <button
-            onClick={() => {
-              setShowSearch(!showSearch);
-              setSearchQuery('');
-            }}
+            onClick={() => setActiveTab('account')}
             style={{
               width: '36px',
               height: '36px',
               borderRadius: '50%',
-              background: showSearch ? '#1D9E75' : '#e8e8e8',
+              background: activeTab === 'account' ? '#1D9E75' : '#e8e8e8',
               border: 'none',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: 'pointer',
-              flexShrink: 0
+              cursor: 'pointer'
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <circle cx="7" cy="7" r="4.5" stroke={showSearch ? 'white' : '#888'} strokeWidth="1.5" />
-              <path d="M10.5 10.5L13 13" stroke={showSearch ? 'white' : '#888'} strokeWidth="1.5" strokeLinecap="round" />
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <circle
+                cx="9"
+                cy="6"
+                r="3"
+                stroke={activeTab === 'account' ? 'white' : '#888'}
+                strokeWidth="1.5"
+              />
+              <path
+                d="M3 15c0-3.3 2.7-6 6-6s6 2.7 6 6"
+                stroke={activeTab === 'account' ? 'white' : '#888'}
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
             </svg>
           </button>
-
-          <div style={{ textAlign: 'center' }}>
-  <h1 className="logo">
-    table<span>mates</span>
-  </h1>
-
-  <p className="tagline">dinner, handled.</p>
-   {isBetaUser && (
-    <div
-      style={{
-        fontSize: '10px',
-        background: '#E1F5EE',
-        color: '#1D9E75',
-        padding: '3px 8px',
-        borderRadius: '999px',
-        display: 'inline-block',
-        marginTop: '4px',
-        fontWeight: 600
-      }}
-    >
-       Beta tester  🎉 
-    </div>
-  )}
-</div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-            <button
-              onClick={() => setActiveTab('profiles')}
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '50%',
-                background: activeTab === 'profiles' ? '#1D9E75' : '#e8e8e8',
-                border: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer'
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <circle cx="9" cy="6" r="3" stroke={activeTab === 'profiles' ? 'white' : '#888'} strokeWidth="1.5" />
-                <path d="M3 15c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke={activeTab === 'profiles' ? 'white' : '#888'} strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </button>
-
-            <button
-              onClick={handleLogout}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#888',
-                fontSize: '11px',
-                cursor: 'pointer',
-                padding: 0,
-                fontFamily: 'inherit'
-              }}
-            >
-              log out
-            </button>
-          </div>
         </div>
+      </div>
 
-        {showSearch && (
-          <div style={{ marginTop: '12px' }}>
-            <input
-              autoFocus
-              className="text-input"
-              placeholder="Search meals, recipes, past weeks..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ marginBottom: searchResults.length > 0 ? '8px' : '0' }}
-            />
+      {showSearch && (
+        <div style={{ marginTop: '12px' }}>
+          <input
+            autoFocus
+            className="text-input"
+            placeholder="Search meals, recipes, past weeks..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ marginBottom: searchResults.length > 0 ? '8px' : '0' }}
+          />
 
-            {searchResults.length > 0 && (
-              <div
-                style={{
-                  background: 'white',
-                  borderRadius: '12px',
-                  overflow: 'hidden',
-                  border: '0.5px solid #e8e8e8'
-                }}
-              >
-                {searchResults.map((result, i) => (
-                  <div
-                    key={i}
-                    onClick={result.action}
-                    style={{
-                      padding: '10px 14px',
-                      borderBottom: i < searchResults.length - 1 ? '0.5px solid #f7f7f5' : 'none',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: '600', color: '#1a1a1a' }}>{result.name}</div>
-                      <div style={{ fontSize: '11px', color: '#aaa', marginTop: '2px' }}>{result.sub}</div>
+          {searchResults.length > 0 && (
+            <div
+              style={{
+                background: 'white',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                border: '0.5px solid #e8e8e8'
+              }}
+            >
+              {searchResults.map((result, i) => (
+                <div
+                  key={i}
+                  onClick={result.action}
+                  style={{
+                    padding: '10px 14px',
+                    borderBottom:
+                      i < searchResults.length - 1
+                        ? '0.5px solid #f7f7f5'
+                        : 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        color: '#1a1a1a'
+                      }}
+                    >
+                      {result.name}
                     </div>
-                    <span style={{ fontSize: '11px', color: '#1D9E75' }}>go</span>
+                    <div
+                      style={{
+                        fontSize: '11px',
+                        color: '#aaa',
+                        marginTop: '2px'
+                      }}
+                    >
+                      {result.sub}
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
+                  <span style={{ fontSize: '11px', color: '#1D9E75' }}>
+                    go
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
-            {searchQuery.trim() && searchResults.length === 0 && (
-              <div style={{ fontSize: '13px', color: '#aaa', textAlign: 'center', padding: '12px' }}>
-                no results for "{searchQuery}"
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="nav">
-        <button className={'nav-btn' + (activeTab === 'schedule' ? ' active' : '')} onClick={() => setActiveTab('schedule')}>
-          schedule
-        </button>
-        <button className={'nav-btn' + (activeTab === 'week' ? ' active' : '')} onClick={() => setActiveTab('week')}>
-          this week
-        </button>
-        <button className={'nav-btn' + (activeTab === 'shopping' ? ' active' : '')} onClick={() => setActiveTab('shopping')}>
-          shopping
-        </button>
-        <button className={'nav-btn' + (activeTab === 'recipes' ? ' active' : '')} onClick={() => setActiveTab('recipes')}>
-          recipes
-        </button>
-        <button className={'nav-btn' + (activeTab === 'pastweeks' ? ' active' : '')} onClick={() => setActiveTab('pastweeks')}>
-          past weeks
-        </button>
-      </div>
-
-            <div className="content">
-        {activeTab === 'profiles' && <Profiles members={members} setMembers={setMembers} />}
-        {activeTab === 'schedule' && <Schedule schedule={schedule} setSchedule={setSchedule} />}
-        {activeTab === 'week' && (
-          <ThisWeek
-            members={members}
-            schedule={schedule}
-            meals={meals}
-            setMeals={setMeals}
-            onSaveWeek={saveWeek}
-            onShoppingListReady={handleShoppingListReady}
-            recipes={recipes}
-            setRecipes={setRecipes}
-            profilesUpdatedAfterMeals={profilesUpdatedAfterMeals}
-            onMealsRegenerated={() => setProfilesUpdatedAfterMeals(false)}
-          />
-        )}
-        {activeTab === 'shopping' && (
-          <ShoppingList
-            shoppingList={shoppingList}
-            setShoppingList={setShoppingList}
-          />
-        )}
-        {activeTab === 'recipes' && (
-         <Recipes
-  recipes={recipes}
-  setRecipes={setRecipes}
-  highlightedRecipe={highlightedRecipe}
-  setHighlightedRecipe={setHighlightedRecipe}
-  meals={meals}
-  setMeals={setMeals}
-/>
-        )}
-        {activeTab === 'pastweeks' && (
-          <PastWeeks
-            savedWeeks={savedWeeks}
-            setSavedWeeks={setSavedWeeks}
-            onNavigateToRecipe={(meal) => {
-              setHighlightedRecipe(meal.name);
-              setActiveTab('recipes');
-            }}
-          />
-        )}
-      </div>
-
-      {showBetaWelcome && (
-        <div className="modal-overlay" onClick={handleCloseBetaWelcome}>
-          <div
-            className="modal-sheet"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '420px' }}
-          >
-            <div className="modal-handle"></div>
-
+          {searchQuery.trim() && searchResults.length === 0 && (
             <div
               style={{
-                fontSize: '24px',
-                fontWeight: '700',
-                color: '#1F2937',
-                marginBottom: '10px',
-                textAlign: 'center'
+                fontSize: '13px',
+                color: '#aaa',
+                textAlign: 'center',
+                padding: '12px'
               }}
             >
-              🎉 Welcome, Beta Tester
+              no results for "{searchQuery}"
             </div>
-
-            <div
-              style={{
-                fontSize: '15px',
-                lineHeight: 1.6,
-                color: '#6B7280',
-                marginBottom: '22px',
-                textAlign: 'center'
-              }}
-            >
-              You’re part of the founding Tablemates beta. Thanks for helping shape the app early — you’ll get free access for life.
-            </div>
-
-            <button
-              className="modal-keep"
-              onClick={handleCloseBetaWelcome}
-              style={{ width: '100%' }}
-            >
-              Let’s do dinner
-            </button>
-          </div>
+          )}
         </div>
       )}
     </div>
-  );
+
+    <div className="nav">
+  <button
+    className={'nav-btn' + (activeTab === 'home' ? ' active' : '')}
+    onClick={() => setActiveTab('home')}
+  >
+    my home
+  </button>
+  <button
+    className={'nav-btn' + (activeTab === 'week' ? ' active' : '')}
+    onClick={() => setActiveTab('week')}
+  >
+    this week
+  </button>
+  <button
+    className={'nav-btn' + (activeTab === 'shopping' ? ' active' : '')}
+    onClick={() => setActiveTab('shopping')}
+  >
+    shopping
+  </button>
+  <button
+    className={'nav-btn' + (activeTab === 'recipes' ? ' active' : '')}
+    onClick={() => setActiveTab('recipes')}
+  >
+    recipes
+  </button>
+  <button
+    className={'nav-btn' + (activeTab === 'pastweeks' ? ' active' : '')}
+    onClick={() => setActiveTab('pastweeks')}
+  >
+    past weeks
+  </button>
+</div>
+
+<div className="content">
+  {activeTab === 'home' && (
+    <MyHome
+      members={members}
+      setMembers={setMembers}
+      schedule={schedule}
+      setSchedule={setSchedule}
+    />
+  )}
+
+  {activeTab === 'account' && (
+    <AccountSupport onLogout={handleLogout} />
+  )}
+
+  {activeTab === 'week' && (
+    <ThisWeek
+      members={members}
+      schedule={schedule}
+      meals={meals}
+      setMeals={setMeals}
+      onSaveWeek={saveWeek}
+      onShoppingListReady={handleShoppingListReady}
+      recipes={recipes}
+      setRecipes={setRecipes}
+      profilesUpdatedAfterMeals={profilesUpdatedAfterMeals}
+      onMealsRegenerated={() => setProfilesUpdatedAfterMeals(false)}
+    />
+  )}
+
+  {activeTab === 'shopping' && (
+    <ShoppingList
+      shoppingList={shoppingList}
+      setShoppingList={setShoppingList}
+    />
+  )}
+
+  {activeTab === 'recipes' && (
+    <Recipes
+      recipes={recipes}
+      setRecipes={setRecipes}
+      highlightedRecipe={highlightedRecipe}
+      setHighlightedRecipe={setHighlightedRecipe}
+      meals={meals}
+      setMeals={setMeals}
+    />
+  )}
+
+  {activeTab === 'pastweeks' && (
+    <PastWeeks
+      savedWeeks={savedWeeks}
+      setSavedWeeks={setSavedWeeks}
+      onNavigateToRecipe={(meal) => {
+        setHighlightedRecipe(meal.name);
+        setActiveTab('recipes');
+      }}
+    />
+  )}
+</div>
+
+{showBetaWelcome && (
+  <div className="modal-overlay" onClick={handleCloseBetaWelcome}>
+    <div
+      className="modal-sheet"
+      onClick={(e) => e.stopPropagation()}
+      style={{ maxWidth: '420px' }}
+    >
+      <div className="modal-handle"></div>
+
+      <div
+        style={{
+          fontSize: '24px',
+          fontWeight: '700',
+          color: '#1F2937',
+          marginBottom: '10px',
+          textAlign: 'center'
+        }}
+      >
+        🎉 Welcome, Beta Tester
+      </div>
+
+      <div
+        style={{
+          fontSize: '15px',
+          lineHeight: 1.6,
+          color: '#6B7280',
+          marginBottom: '22px',
+          textAlign: 'center'
+        }}
+      >
+        You’re part of the founding Tablemates beta. Thanks for helping shape
+        the app early — you’ll get free access for life.
+      </div>
+
+      <button
+        className="modal-keep"
+        onClick={handleCloseBetaWelcome}
+        style={{ width: '100%' }}
+      >
+        Let’s do dinner
+      </button>
+    </div>
+  </div>
+)}
+  </div>
+);
 }
 
 export default MainApp;

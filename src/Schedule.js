@@ -232,215 +232,206 @@ function Schedule({ schedule, setSchedule }) {
   };
 
   return (
-    <div>
-      <div
-        style={{
-          background: '#ffffff',
-          borderRadius: '16px',
-          padding: '16px',
-          marginBottom: '16px',
-          border: '1px solid #ececec'
-        }}
-      >
+  <div>
+    {DAYS.map((day) => {
+      const items = normalizedSchedule[day]?.items || [];
+      const pace = calculatePace(items);
+
+      return (
         <div
+          key={day}
           style={{
-            fontSize: '16px',
-            fontWeight: '700',
-            marginBottom: '6px',
-            color: '#1a1a1a'
+            background: '#fff',
+            borderRadius: '16px',
+            padding: '16px',
+            marginBottom: '14px',
+            border: '1px solid #ececec',
+            boxSizing: 'border-box',
           }}
         >
-          your weekly pace
-        </div>
-        <div
-          style={{
-            fontSize: '13px',
-            color: '#777',
-            lineHeight: '1.5'
-          }}
-        >
-          Add activities like practices, games, or events and Tablemates will determine how busy each night is. 
-Busy nights get quicker dinners, while relaxed nights can get more involved meals.
-        </div>
-      </div>
-
-      {DAYS.map((day) => {
-        const items = normalizedSchedule[day]?.items || [];
-        const pace = calculatePace(items);
-
-        return (
           <div
-            key={day}
             style={{
-              background: '#fff',
-              borderRadius: '16px',
-              padding: '16px',
-              marginBottom: '12px',
-              border: '1px solid #ececec'
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '12px',
+              marginBottom: '14px',
+              flexWrap: 'wrap',
             }}
           >
             <div
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: '12px',
-                marginBottom: '12px',
-                flexWrap: 'wrap'
+                fontSize: '16px',
+                fontWeight: '700',
+                color: '#1a1a1a',
               }}
             >
-              <div
-                style={{
-                  fontSize: '15px',
-                  fontWeight: '700',
-                  color: '#1a1a1a'
-                }}
-              >
-                {day}
-              </div>
-
-              <div
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: '999px',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  textTransform: 'lowercase',
-                  ...paceStyles[pace]
-                }}
-              >
-                {pace}
-              </div>
+              {day}
             </div>
 
-            {items.length === 0 ? (
-              <div
-                style={{
-                  fontSize: '13px',
-                  color: '#888',
-                  marginBottom: '12px'
-                }}
-              >
-                Nothing scheduled yet.
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gap: '10px', marginBottom: '12px' }}>
-                {items.map((item, index) => (
+            <div
+              style={{
+                padding: '9px 15px',
+                borderRadius: '999px',
+                fontSize: '13px',
+                fontWeight: '700',
+                textTransform: 'lowercase',
+                ...paceStyles[pace],
+              }}
+            >
+              {pace}
+            </div>
+          </div>
+
+          {items.length === 0 ? (
+            <div
+              style={{
+                fontSize: '14px',
+                color: '#888',
+                marginBottom: '14px',
+              }}
+            >
+              Nothing scheduled yet.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'grid',
+                gap: '12px',
+                marginBottom: '14px',
+              }}
+            >
+              {items.map((item, index) => (
+                <div
+                  key={`${day}-${index}`}
+                  style={{
+                    border: '1px solid #ececec',
+                    borderRadius: '14px',
+                    padding: '14px',
+                    background: '#fcfcfc',
+                    boxSizing: 'border-box',
+                    width: '100%',
+                  }}
+                >
                   <div
-                    key={`${day}-${index}`}
                     style={{
-                      border: '1px solid #ececec',
-                      borderRadius: '14px',
-                      padding: '12px',
-                      background: '#fcfcfc'
+                      display: 'grid',
+                      gap: '10px',
                     }}
                   >
-                    <div style={{ display: 'grid', gap: '10px' }}>
+                    <input
+                      type="text"
+                      placeholder="Ex. Gymnastics 4-7"
+                      value={buildActivityText(item)}
+                      onChange={(e) => updateActivityText(day, index, e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '11px 12px',
+                        borderRadius: '12px',
+                        border: '1px solid #ddd',
+                        fontSize: '13px',
+                        fontFamily: 'inherit',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr auto',
+                        gap: '8px',
+                        width: '100%',
+                        alignItems: 'stretch',
+                      }}
+                    >
                       <input
-                        type="text"
-                        placeholder="Ex. Gymnastics 4-7"
-                        value={buildActivityText(item)}
-                        onChange={(e) => updateActivityText(day, index, e.target.value)}
+                        type="time"
+                        value={item.start || ''}
+                        onChange={(e) =>
+                          updateActivityFields(day, index, {
+                            start: e.target.value,
+                            rawText: '',
+                          })
+                        }
                         style={{
                           width: '100%',
-                          padding: '10px 12px',
-                          borderRadius: '10px',
+                          minWidth: 0,
+                          padding: '11px 12px',
+                          borderRadius: '12px',
                           border: '1px solid #ddd',
                           fontSize: '13px',
-                          fontFamily: 'inherit'
+                          fontFamily: 'inherit',
+                          boxSizing: 'border-box',
                         }}
                       />
 
-                      <div
+                      <input
+                        type="time"
+                        value={item.end || ''}
+                        onChange={(e) =>
+                          updateActivityFields(day, index, {
+                            end: e.target.value,
+                            rawText: '',
+                          })
+                        }
                         style={{
-                          display: 'grid',
-                          gridTemplateColumns: '1fr 1fr auto',
-                          gap: '8px'
+                          width: '100%',
+                          minWidth: 0,
+                          padding: '11px 12px',
+                          borderRadius: '12px',
+                          border: '1px solid #ddd',
+                          fontSize: '13px',
+                          fontFamily: 'inherit',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => removeActivity(day, index)}
+                        style={{
+                          padding: '11px 14px',
+                          borderRadius: '12px',
+                          border: '1px solid #e3e3e3',
+                          background: '#f8f8f8',
+                          color: '#666',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
                         }}
                       >
-                        <input
-                          type="time"
-                          value={item.start || ''}
-                          onChange={(e) =>
-                            updateActivityFields(day, index, {
-                              start: e.target.value,
-                              rawText: ''
-                            })
-                          }
-                          style={{
-                            width: '100%',
-                            padding: '10px 12px',
-                            borderRadius: '10px',
-                            border: '1px solid #ddd',
-                            fontSize: '13px',
-                            fontFamily: 'inherit'
-                          }}
-                        />
-
-                        <input
-                          type="time"
-                          value={item.end || ''}
-                          onChange={(e) =>
-                            updateActivityFields(day, index, {
-                              end: e.target.value,
-                              rawText: ''
-                            })
-                          }
-                          style={{
-                            width: '100%',
-                            padding: '10px 12px',
-                            borderRadius: '10px',
-                            border: '1px solid #ddd',
-                            fontSize: '13px',
-                            fontFamily: 'inherit'
-                          }}
-                        />
-
-                        <button
-                          type="button"
-                          onClick={() => removeActivity(day, index)}
-                          style={{
-                            padding: '10px 12px',
-                            borderRadius: '10px',
-                            border: '1px solid #e3e3e3',
-                            background: '#f8f8f8',
-                            color: '#666',
-                            fontSize: '13px',
-                            fontWeight: '600',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Remove
-                        </button>
-                      </div>
+                        Remove
+                      </button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
+          )}
 
-            <button
-              type="button"
-              onClick={() => addActivity(day)}
-              style={{
-                padding: '10px 14px',
-                borderRadius: '999px',
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                fontSize: '13px',
-                fontWeight: '600',
-                background: '#f6f6f6',
-                color: '#444',
-                border: '1px solid #e3e3e3'
-              }}
-            >
-              + Add activity
-            </button>
-          </div>
-        );
-      })}
-    </div>
-  );
+          <button
+            type="button"
+            onClick={() => addActivity(day)}
+            style={{
+              padding: '11px 16px',
+              borderRadius: '999px',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              fontSize: '13px',
+              fontWeight: '600',
+              background: '#f6f6f6',
+              color: '#444',
+              border: '1px solid #e3e3e3',
+            }}
+          >
+            + Add activity
+          </button>
+        </div>
+      );
+    })}
+  </div>
+);
 }
 
 export default Schedule;
