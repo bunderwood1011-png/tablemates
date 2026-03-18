@@ -194,15 +194,6 @@ function MyHome({ members, setMembers, schedule, setSchedule }) {
     boxShadow: '0 2px 10px rgba(0,0,0,0.035)',
   };
 
-  const profileCard = {
-    background: '#fff',
-    border: '1px solid #ececec',
-    borderRadius: '16px',
-    padding: '14px',
-    marginBottom: '12px',
-    cursor: 'pointer',
-  };
-
   return (
     <div style={{ marginTop: '16px' }}>
       <div
