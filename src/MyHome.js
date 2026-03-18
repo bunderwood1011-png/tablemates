@@ -10,8 +10,8 @@ function MyHome({ members, setMembers, schedule, setSchedule }) {
   const [allergies, setAllergies] = useState([]);
   const [activeInput, setActiveInput] = useState(null);
   const [inputVal, setInputVal] = useState('');
-  const [showFamily, setShowFamily] = useState(true);
-  const [showSchedule, setShowSchedule] = useState(true);
+  const [showFamily, setShowFamily] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
 
   const openNew = () => {
     setName('');
