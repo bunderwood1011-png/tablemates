@@ -1,6 +1,18 @@
 import React, { useState } from 'react';
 import Schedule from './Schedule';
 
+const DINNER_TIME_OPTIONS = [
+  { value: '16:00', label: '4:00 PM' },
+  { value: '16:30', label: '4:30 PM' },
+  { value: '17:00', label: '5:00 PM' },
+  { value: '17:30', label: '5:30 PM' },
+  { value: '18:00', label: '6:00 PM' },
+  { value: '18:30', label: '6:30 PM' },
+  { value: '19:00', label: '7:00 PM' },
+  { value: '19:30', label: '7:30 PM' },
+  { value: '20:00', label: '8:00 PM' },
+];
+
 function MyHome({ members, setMembers, schedule, setSchedule }) {
   const [sheet, setSheet] = useState(null);
   const [editingName, setEditingName] = useState(false);
@@ -12,6 +24,8 @@ function MyHome({ members, setMembers, schedule, setSchedule }) {
   const [inputVal, setInputVal] = useState('');
   const [showFamily, setShowFamily] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
+  const [dinnerSaveStatus, setDinnerSaveStatus] = useState('idle');
+  const [isEditingDinner, setIsEditingDinner] = useState(false);
 
   const openNew = () => {
     setName('');
@@ -85,6 +99,29 @@ function MyHome({ members, setMembers, schedule, setSchedule }) {
     setInputVal('');
     setActiveInput(null);
   };
+      const updateDinnerTime = async (field, value) => {
+  const nextSchedule = {
+    ...schedule,
+    [field]: value,
+  };
+
+  setDinnerSaveStatus('saving');
+
+  await setSchedule(nextSchedule);
+
+  setDinnerSaveStatus('saved');
+
+  setTimeout(() => {
+    setDinnerSaveStatus('idle');
+  }, 2000);
+};
+
+  const dinnerTimeError =
+    schedule?.dinner_start_time &&
+    schedule?.dinner_end_time &&
+    schedule.dinner_start_time >= schedule.dinner_end_time
+      ? 'Dinner end time must be later than the start time.'
+      : '';
 
   const PencilIcon = () => (
     <svg
@@ -193,6 +230,21 @@ function MyHome({ members, setMembers, schedule, setSchedule }) {
     borderRadius: '18px',
     boxShadow: '0 2px 10px rgba(0,0,0,0.035)',
   };
+const formatDinnerTime = (value) => {
+  if (!value) return '';
+
+  const [hours, minutes] = value.split(':').map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return value;
+
+  const suffix = hours >= 12 ? 'PM' : 'AM';
+  const displayHour = hours % 12 || 12;
+  const displayMinute = String(minutes).padStart(2, '0');
+
+  return `${displayHour}:${displayMinute} ${suffix}`;
+};
+
+const hasDinnerWindow =
+  schedule?.dinner_start_time && schedule?.dinner_end_time;
 
   return (
     <div style={{ marginTop: '16px' }}>
@@ -587,7 +639,251 @@ function MyHome({ members, setMembers, schedule, setSchedule }) {
     </button>
   </div>
 
-  {showSchedule && <Schedule schedule={schedule} setSchedule={setSchedule} />}
+  {showSchedule && (
+  <><div
+  style={{
+    marginBottom: '16px',
+    padding: '16px',
+    background: '#FFF8F3',
+    border: '1px solid #F6D7C3',
+    borderRadius: '16px',
+  }}
+>
+  {!isEditingDinner && hasDinnerWindow ? (
+    <button
+      type="button"
+      onClick={() => setIsEditingDinner(true)}
+      style={{
+        width: '100%',
+        border: 'none',
+        background: 'transparent',
+        padding: 0,
+        textAlign: 'left',
+        cursor: 'pointer',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '4px',
+        }}
+      >
+        <div
+          style={{
+            fontSize: '12px',
+            fontWeight: '600',
+            color: '#E46A2E',
+          }}
+        >
+          Dinner
+        </div>
+
+        <div
+          style={{
+            fontSize: '12px',
+            color: '#6B7280',
+            fontWeight: '500',
+          }}
+        >
+          Edit
+        </div>
+      </div>
+
+      <div
+        style={{
+          fontSize: '15px',
+          fontWeight: '600',
+          color: '#1F2937',
+        }}
+      >
+        {formatDinnerTime(schedule?.dinner_start_time)}–{formatDinnerTime(schedule?.dinner_end_time)}
+      </div>
+
+      {!dinnerTimeError && dinnerSaveStatus === 'saved' ? (
+        <div
+          style={{
+            marginTop: '6px',
+            fontSize: '12px',
+            color: '#1D9E75',
+            fontWeight: '600',
+          }}
+        >
+          Saved
+        </div>
+      ) : null}
+    </button>
+  ) : (
+    <>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px',
+          marginBottom: '6px',
+        }}
+      >
+        <div
+          style={{
+            fontSize: '13px',
+            fontWeight: '600',
+            color: '#6B7280',
+          }}
+        >
+          What time frame do you usually like to eat dinner?
+        </div>
+
+        {hasDinnerWindow ? (
+          <button
+            type="button"
+            onClick={() => setIsEditingDinner(false)}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: '#E46A2E',
+              fontSize: '12px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            Done
+          </button>
+        ) : null}
+      </div>
+
+      <div
+        style={{
+          fontSize: '13px',
+          color: '#6B7280',
+          marginBottom: '12px',
+          lineHeight: 1.45,
+        }}
+      >
+        We use this to make your meal plan fit your real evenings better.
+      </div>
+
+      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: '160px' }}>
+          <div
+            style={{
+              fontSize: '12px',
+              fontWeight: '600',
+              color: '#4B5563',
+              marginBottom: '6px',
+            }}
+          >
+            Start
+          </div>
+
+          <select
+            value={schedule?.dinner_start_time || ''}
+            onChange={(e) =>
+              updateDinnerTime('dinner_start_time', e.target.value)
+            }
+            style={{
+              width: '100%',
+              padding: '12px',
+              borderRadius: '12px',
+              border: '1px solid #D1D5DB',
+              fontSize: '14px',
+              background: '#fff',
+              color: '#111827',
+            }}
+          >
+            <option value="">Select time</option>
+            {DINNER_TIME_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ flex: 1, minWidth: '160px' }}>
+          <div
+            style={{
+              fontSize: '12px',
+              fontWeight: '600',
+              color: '#4B5563',
+              marginBottom: '6px',
+            }}
+          >
+            End
+          </div>
+
+          <select
+            value={schedule?.dinner_end_time || ''}
+            onChange={(e) =>
+              updateDinnerTime('dinner_end_time', e.target.value)
+            }
+            style={{
+              width: '100%',
+              padding: '12px',
+              borderRadius: '12px',
+              border: '1px solid #D1D5DB',
+              fontSize: '14px',
+              background: '#fff',
+              color: '#111827',
+            }}
+          >
+            <option value="">Select time</option>
+            {DINNER_TIME_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {dinnerTimeError ? (
+        <div
+          style={{
+            marginTop: '10px',
+            fontSize: '12px',
+            color: '#B42318',
+            fontWeight: '500',
+          }}
+        >
+          {dinnerTimeError}
+        </div>
+      ) : null}
+
+      {!dinnerTimeError && dinnerSaveStatus === 'saving' ? (
+        <div
+          style={{
+            marginTop: '10px',
+            fontSize: '12px',
+            color: '#6B7280',
+            fontWeight: '500',
+          }}
+        >
+          Saving dinner time...
+        </div>
+      ) : null}
+
+      {!dinnerTimeError && dinnerSaveStatus === 'saved' ? (
+        <div
+          style={{
+            marginTop: '10px',
+            fontSize: '12px',
+            color: '#1D9E75',
+            fontWeight: '600',
+          }}
+        >
+          Dinner time saved
+        </div>
+      ) : null}
+    </>
+  )}
+</div>
+
+<Schedule schedule={schedule} setSchedule={setSchedule} />
+  </>
+)}
 </div>
 
       {sheet && (

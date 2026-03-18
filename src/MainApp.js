@@ -138,24 +138,30 @@ useEffect(() => {
   }, [user, weekKey]);
 
   useEffect(() => {
-    const loadSchedule = async () => {
-      const { data, error } = await supabase
-        .from('schedules')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
+  const loadSchedule = async () => {
+    const { data, error } = await supabase
+      .from('schedules')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
 
-      if (error) {
-        console.error('Error loading schedule:', error);
-        setScheduleRaw(DEFAULT_SCHEDULE);
-        return;
-      }
+    if (error) {
+      console.error('Error loading schedule:', error);
+      setScheduleRaw(DEFAULT_SCHEDULE);
+      return;
+    }
 
-      setScheduleRaw(data?.schedule || DEFAULT_SCHEDULE);
-    };
+    setScheduleRaw({
+      ...(data?.schedule || DEFAULT_SCHEDULE),
+      dinner_start_time: data?.dinner_start_time || '',
+      dinner_end_time: data?.dinner_end_time || '',
+    });
+  };
 
+  if (user?.id) {
     loadSchedule();
-  }, [user]);
+  }
+}, [user?.id]);
 
   useEffect(() => {
     localStorage.setItem('tm_shopping', JSON.stringify(shoppingList));
@@ -275,13 +281,20 @@ useEffect(() => {
 
   setScheduleRaw(resolvedSchedule);
 
+  // 👇 separate dinner times from schedule JSON
+  const cleanedSchedule = { ...resolvedSchedule };
+  delete cleanedSchedule.dinner_start_time;
+  delete cleanedSchedule.dinner_end_time;
+
   const { data, error } = await supabase
     .from('schedules')
     .upsert(
       [
         {
           user_id: user.id,
-          schedule: resolvedSchedule
+          schedule: cleanedSchedule,
+          dinner_start_time: resolvedSchedule?.dinner_start_time || null,
+          dinner_end_time: resolvedSchedule?.dinner_end_time || null,
         }
       ],
       { onConflict: 'user_id' }
@@ -290,10 +303,7 @@ useEffect(() => {
 
   if (error) {
     console.error('Error saving schedule:', error);
-    alert('Save schedule failed: ' + error.message);
-    return;
   }
-
   console.log('Schedule saved successfully:', data);
 };
 
