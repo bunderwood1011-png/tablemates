@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import PastWeeks from './PastWeeks';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -14,7 +14,6 @@ function Recipes({
   setSavedWeeks
 }) {
   const [expanded, setExpanded] = useState(null);
-  const highlightedRecipeRef = React.useRef(null);
   const [expandedMods, setExpandedMods] = useState({});
   const [showIngredients, setShowIngredients] = useState({});
   const [recipeToPlan, setRecipeToPlan] = useState(null);
@@ -67,7 +66,7 @@ const addRecipeToSpecificDay = async (recipe, day) => {
       ...meals,
       [day]: {
         name: recipe.name || '',
-        time: recipe.time || '',
+        time: recipe.time || recipe.time_label || '',
         description: recipe.description || '',
         ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [],
         steps: Array.isArray(recipe.steps) ? recipe.steps : [],
@@ -162,7 +161,7 @@ if (!recipes || recipes.length === 0) {
           savedWeeks={savedWeeks}
           setSavedWeeks={setSavedWeeks}
           onNavigateToRecipe={(meal) => {
-            setHighlightedRecipe(meal.name);
+            setHighlightedRecipe(meal);
             setView('all');
           }}
         />
@@ -258,7 +257,7 @@ return (
         savedWeeks={savedWeeks}
         setSavedWeeks={setSavedWeeks}
         onNavigateToRecipe={(meal) => {
-          setHighlightedRecipe(meal.name);
+          setHighlightedRecipe(meal);
           setView('all');
         }}
       />
@@ -332,7 +331,7 @@ return (
                     </div>
                   )}
 
-                  {recipe.time && (
+                  {(recipe.time || recipe.time_label) && (
                     <div
                       style={{
                         fontSize: '12px',
@@ -340,7 +339,7 @@ return (
                         fontWeight: '600'
                       }}
                     >
-                      ⏱ {recipe.time}
+                      ⏱ {recipe.time || recipe.time_label}
                     </div>
                   )}
                 </div>
