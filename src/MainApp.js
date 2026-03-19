@@ -335,19 +335,55 @@ useEffect(() => {
   };
 
   const getSearchResults = () => {
-    if (!searchQuery.trim()) return [];
+  if (!searchQuery.trim()) return [];
 
-    const q = searchQuery.toLowerCase();
-    const results = [];
+  const q = searchQuery.toLowerCase();
+  const results = [];
+  const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-    recipes.forEach((r) => {
-      if (r.name.toLowerCase().includes(q)) {
+  recipes.forEach((recipe) => {
+    if (recipe.name?.toLowerCase().includes(q)) {
+      results.push({
+        type: 'recipe',
+        name: recipe.name,
+        sub: 'saved recipe',
+        action: () => {
+          setHighlightedRecipe(recipe);
+          setActiveTab('recipes');
+          setShowSearch(false);
+          setSearchQuery('');
+        }
+      });
+    }
+  });
+
+  DAYS.forEach((day) => {
+    const meal = meals[day];
+    if (meal?.name?.toLowerCase().includes(q)) {
+      results.push({
+        type: 'week',
+        name: meal.name,
+        sub: `this week - ${day}`,
+        action: () => {
+          setHighlightedRecipe(meals[day]);
+          setActiveTab('recipes');
+          setShowSearch(false);
+          setSearchQuery('');
+        }
+      });
+    }
+  });
+
+  savedWeeks.forEach((week) => {
+    DAYS.forEach((day) => {
+      const meal = week.meals?.[day];
+      if (meal?.name?.toLowerCase().includes(q)) {
         results.push({
-          type: 'recipe',
-          name: r.name,
-          sub: 'saved recipe',
+          type: 'past',
+          name: meal.name,
+          sub: `week of ${week.date}`,
           action: () => {
-            setHighlightedRecipe(r.name);
+            setHighlightedRecipe(meals[day]);
             setActiveTab('recipes');
             setShowSearch(false);
             setSearchQuery('');
@@ -355,48 +391,16 @@ useEffect(() => {
         });
       }
     });
+  });
 
-    const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
-    DAYS.forEach((day) => {
-      if (meals[day] && meals[day].name.toLowerCase().includes(q)) {
-        results.push({
-          type: 'week',
-          name: meals[day].name,
-          sub: 'this week - ' + day,
-          action: () => {
-            setActiveTab('week');
-            setShowSearch(false);
-            setSearchQuery('');
-          }
-        });
-      }
-    });
-
-    savedWeeks.forEach((week) => {
-      DAYS.forEach((day) => {
-        if (week.meals[day] && week.meals[day].name.toLowerCase().includes(q)) {
-          results.push({
-            type: 'past',
-            name: week.meals[day].name,
-            sub: 'week of ' + week.date,
-            action: () => {
-              setActiveTab('pastweeks');
-              setShowSearch(false);
-              setSearchQuery('');
-            }
-          });
-        }
-      });
-    });
-
-    const seen = new Set();
-    return results.filter((r) => {
-      if (seen.has(r.name)) return false;
-      seen.add(r.name);
-      return true;
-    });
-  };
+  const seen = new Set();
+  return results.filter((result) => {
+    const key = `${result.type}-${result.name}-${result.sub}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
   const searchResults = getSearchResults();
 
@@ -683,9 +687,9 @@ useEffect(() => {
       savedWeeks={savedWeeks}
       setSavedWeeks={setSavedWeeks}
       onNavigateToRecipe={(meal) => {
-        setHighlightedRecipe(meal.name);
-        setActiveTab('recipes');
-      }}
+      setHighlightedRecipe(meal);
+      setActiveTab('recipes');
+    }}
     />
   )}
 </div>

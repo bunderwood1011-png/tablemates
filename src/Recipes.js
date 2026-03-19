@@ -14,22 +14,37 @@ function Recipes({
   setSavedWeeks
 }) {
   const [expanded, setExpanded] = useState(null);
+  const highlightedRecipeRef = React.useRef(null);
   const [expandedMods, setExpandedMods] = useState({});
   const [showIngredients, setShowIngredients] = useState({});
   const [recipeToPlan, setRecipeToPlan] = useState(null);
   const [view, setView] = useState('all'); // 'all' | 'favorites' | 'past'
 
   useEffect(() => {
-    if (highlightedRecipe) {
-      const timer = setTimeout(() => {
-        const match = recipes.find((r) => r.name === highlightedRecipe);
-        if (match) setExpanded(match.id);
-        setHighlightedRecipe(null);
-      }, 100);
+  if (!highlightedRecipe) return;
 
-      return () => clearTimeout(timer);
+  const timer = setTimeout(() => {
+    const match = recipes.find((r) => {
+      if (highlightedRecipe.id && r.id === highlightedRecipe.id) return true;
+      return r.name === highlightedRecipe.name;
+    });
+
+    if (match) {
+      setExpanded(match.id);
+
+      setTimeout(() => {
+        const el = document.getElementById(`recipe-${match.id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
     }
-  }, [highlightedRecipe, recipes, setHighlightedRecipe]);
+
+    setHighlightedRecipe(null);
+  }, 100);
+
+  return () => clearTimeout(timer);
+}, [highlightedRecipe, recipes, setHighlightedRecipe]);
 
 
   const toggleFavorite = (id) => {
@@ -273,6 +288,7 @@ return (
           return (
             <div
               key={recipe.id}
+              id={`recipe-${recipe.id}`}
               className="week-meal-card"
               style={{
                 border: isExpanded ? '1.5px solid #1D9E75' : '0.5px solid #e8e8e8',
@@ -281,7 +297,7 @@ return (
                 marginBottom: '16px',
                 background: '#fff'
               }}
-            >
+>
               <div
                 style={{
                   display: 'flex',
