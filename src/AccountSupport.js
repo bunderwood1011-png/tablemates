@@ -60,7 +60,6 @@ function AccountSupport({ onLogout }) {
   const [membershipTier, setMembershipTier] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [emailMsg, setEmailMsg] = useState('');
-  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordMsg, setPasswordMsg] = useState('');
@@ -115,7 +114,6 @@ function AccountSupport({ onLogout }) {
       setPasswordMsg('Could not update password. Try again.');
     } else {
       setPasswordMsg('Password updated successfully.');
-      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     }
