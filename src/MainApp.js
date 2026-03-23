@@ -117,25 +117,27 @@ useEffect(() => {
 }, [user]);
 
   useEffect(() => {
-    const loadMeals = async () => {
-      const { data, error } = await supabase
-        .from('weekly_meals')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('week_key', weekKey)
-        .maybeSingle();
+  const loadMeals = async () => {
+    const { data, error } = await supabase
+      .from('weekly_meals')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('week_key', weekKey)
+      .maybeSingle();
 
-      if (error) {
-        console.error('Error loading meals:', error);
-        setMealsRaw({});
-        return;
-      }
+    if (error) {
+      console.error('Error loading meals:', error);
+      return; // don't wipe meals on error
+    }
 
-      setMealsRaw(data?.meals || {});
-    };
+    if (data?.meals) {
+      setMealsRaw(data.meals);
+    }
+    // if no data, leave meals as-is — don't reset to {}
+  };
 
-    loadMeals();
-  }, [user, weekKey]);
+  loadMeals();
+}, [user.id, weekKey]); // use user.id not user to prevent extra re-renders
 
   useEffect(() => {
   const loadSchedule = async () => {
@@ -243,23 +245,32 @@ useEffect(() => {
 
     setMealsRaw(resolvedMeals);
 
-    const { error: deleteError } = await supabase
-      .from('weekly_meals')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('week_key', weekKey);
+    const { data: upsertData, error: upsertError } = await supabase
+  .from('weekly_meals')
+  .upsert(
+    [{
+      user_id: user.id,
+      week_key: weekKey,
+      meals: resolvedMeals,
+      updated_at: new Date().toISOString()
+    }],
+    { onConflict: 'user_id, week_key' }
+  )
+  .select();
 
-    if (deleteError) {
-      console.error('Error deleting old weekly meals:', deleteError);
-      return;
-    }
+if (upsertError) {
+  console.error('Error saving meals:', upsertError);
+  alert('Meal save failed: ' + upsertError.message);
+  return;
+}
+console.log('Meals saved:', upsertData);
 
     const { data, error: insertError } = await supabase
       .from('weekly_meals')
       .insert([
         {
           user_id: user.id,
-          week_key: weekKey,
+          week_start: weekKey,
           meals: resolvedMeals
         }
       ])
