@@ -88,12 +88,29 @@ const getMealTimeFloor = (meal) => {
 
   if (
     hasAny([
+      'pizza',
+      'homemade pizza',
+      'stromboli',
+      'calzone'
+    ])
+  ) {
+    return 45;
+  }
+
+  if (
+    hasAny([
       'sheet pan',
       'baked',
       'roasted',
       'oven roasted',
       'gratin',
-      'enchiladas'
+      'enchiladas',
+      'fried chicken',
+      'chicken thighs',
+      'chicken breast',
+      'baked chicken',
+      'baked salmon',
+      'baked fish'
     ])
   ) {
     return 40;
@@ -179,6 +196,7 @@ const getDayPace = (dayData) => {
 };
 
 function ThisWeek({
+  user,
   members,
   schedule,
   meals,
@@ -286,7 +304,7 @@ const clearNotice = () => {
       .from('meal_feedback')
       .insert([
         {
-          user_id: null,
+          user_id: user?.id || null,
           day,
           meal_name: mealName,
           feedback_reason: reason,
@@ -414,10 +432,13 @@ const clearNotice = () => {
         ? 'Time limit: any length is allowed, but keep it practical. '
         : `Time limit: ${maxMinutes} minutes or less total, including prep and cook time. `) +
       'The time must equal the REAL total cooking time including prep and cook time. ' +
-      'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
+      'Be conservative, not optimistic — if you are unsure, round up. ' +
+      'Include oven preheat time (usually 10–15 min) in the total for any oven recipe. ' +
       'Do NOT return times under the real cooking time. ' +
-      'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
-      'Do not label oven meals as 20 minutes or less. ' +
+      'Oven meals (baked, roasted, sheet pan) are at least 40 minutes total. ' +
+      'Pizza takes at least 45 minutes total. ' +
+      'Lasagna, casseroles, and stuffed peppers take at least 60 minutes total. ' +
+      'Do not label oven meals as 20–30 minutes. ' +
       'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
       `Family:\n${familyInfo}\n` +
       (otherMealNames ? `Do NOT repeat these meals already in the week: ${otherMealNames}. ` : '') +
@@ -504,10 +525,14 @@ RELAXED DAY MEAL RULES:
         'You are a family meal planner. Suggest one dinner per night for a week. ' +
         'Busy nights need meals 30 min or less, moderate nights 60 min or less, relaxed nights can be any length. ' +
         'The time must equal the REAL total cooking time including prep and cook time. ' +
-        'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
+        'Be conservative, not optimistic — if you are unsure, round up. ' +
+        'Include oven preheat time (usually 10–15 min) in the total for any oven recipe. ' +
         'Do NOT return times under the real cooking time. ' +
-        'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
-        'Do not label oven meals as 20 minutes or less. ' +
+        'Oven meals (baked, roasted, sheet pan) are at least 40 minutes total. ' +
+        'Pizza takes at least 45 minutes total. ' +
+        'Lasagna, casseroles, and stuffed peppers take at least 60 minutes total. ' +
+        'Slow cooker and braised meals take at least 90 minutes total. ' +
+        'Do not label oven meals as 20–30 minutes. ' +
         'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
         'Do not repeat meals within the same week. ' +
         (existingMealNames ? `Avoid repeating these previously suggested meals if possible: ${existingMealNames}. ` : '') +
@@ -564,6 +589,7 @@ const skipMealForDay = (day) => {
   setSwapping(day);
   setModal(null);
   setError(null);
+  setShowSwapFeedback((prev) => ({ ...prev, [day]: true }));
 
   const previousMeal = meals?.[day];
   const hadShoppingList = Array.isArray(shoppingList) && shoppingList.length > 0;
@@ -594,10 +620,13 @@ const skipMealForDay = (day) => {
       `${paceRules}\n` +
       `Time limit: ${timeLimit}. ` +
       'The time must equal the REAL total cooking time including prep and cook time. ' +
-      'Do NOT estimate. If the recipe requires baking, simmering, or roasting, include that full time. ' +
+      'Be conservative, not optimistic — if you are unsure, round up. ' +
+      'Include oven preheat time (usually 10–15 min) in the total for any oven recipe. ' +
       'Do NOT return times under the real cooking time. ' +
-      'If the recipe includes baking, roasting, or oven cooking, the time will usually be 30 to 60 minutes. ' +
-      'Do not label oven meals as 20 minutes or less. ' +
+      'Oven meals (baked, roasted, sheet pan) are at least 40 minutes total. ' +
+      'Pizza takes at least 45 minutes total. ' +
+      'Lasagna, casseroles, and stuffed peppers take at least 60 minutes total. ' +
+      'Do not label oven meals as 20–30 minutes. ' +
       'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
       `Family:\n${familyInfo}\n` +
       (current
@@ -655,10 +684,7 @@ const skipMealForDay = (day) => {
 
     showNotice(message, 'info');
     setMeals((prev) => ({ ...prev, [day]: result }));
-    setShowSwapFeedback((prev) => ({
-      ...prev,
-      [day]: true,
-    }));
+    setShowSwapFeedback((prev) => ({ ...prev, [day]: false }));
   } catch (err) {
     console.error('swapMeal error:', err);
 
@@ -1108,11 +1134,16 @@ useEffect(() => {
 </div>
 
 {!meals[day]?.skipped && showSwapFeedback[day] && (
-  <div style={{ marginTop: '10px' }}>
+  <div style={{
+    marginTop: '10px',
+    border: '1.5px solid #E46A2E',
+    borderRadius: '12px',
+    padding: '10px 12px',
+  }}>
     <div
       style={{
         fontSize: '13px',
-        color: '#6B7280',
+        color: '#E46A2E',
         marginBottom: '6px',
         fontWeight: 600,
       }}

@@ -14,7 +14,7 @@ const slides = [
   {
     emoji: '📅',
     title: 'Set your weekly schedule',
-    body: 'Mark each night as Busy, Moderate, or Relaxed. Busy nights get quick 30-minute meals — relaxed nights can be something more involved.',
+    body: 'Add what you have going on for the week and Tablemateswill mark each night as Busy, Moderate, or Relaxed. Busy nights get quick 30-minute meals — relaxed nights can be something more involved.',
   },
   {
     emoji: '✨',

@@ -650,6 +650,7 @@ console.log('Meals saved:', upsertData);
 
   {activeTab === 'week' && (
     <ThisWeek
+      user={user}
       members={members}
       schedule={schedule}
       meals={meals}
