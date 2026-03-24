@@ -6,7 +6,6 @@ import ThisWeek from './ThisWeek';
 import ShoppingList from './ShoppingList';
 import PastWeeks from './PastWeeks';
 import Recipes from './Recipes';
-import Splash from './Splash';
 import { supabase } from './supabaseClient';
 
 const DEFAULT_SCHEDULE = {
@@ -20,7 +19,6 @@ const DEFAULT_SCHEDULE = {
 };
 
 function MainApp({ user }) {
-  const [showSplash, setShowSplash] = useState(true);
   const [activeTab, setActiveTab] = useState('week');
   const [profilesUpdatedAfterMeals, setProfilesUpdatedAfterMeals] = useState(false);
   const [highlightedRecipe, setHighlightedRecipe] = useState(null);
@@ -417,14 +415,6 @@ console.log('Meals saved:', upsertData);
 
   return (
   <div className="app">
-    {showSplash && (
-      <Splash
-        onDone={() => {
-          setShowSplash(false);
-          setActiveTab('week');
-        }}
-      />
-    )}
 
     <div className="header" style={{ marginBottom: '1.5rem' }}>
       <div

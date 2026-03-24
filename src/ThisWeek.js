@@ -528,6 +528,7 @@ const message = buildMealPlanUpdateMessage({
 
 showNotice(message, 'info');
 setMeals(validatedMeals);
+await refreshAllMods(validatedMeals);
 } catch (err) {
   console.error('suggestWeek error:', err);
 
@@ -678,21 +679,22 @@ const skipMealForDay = (day) => {
     setSwapping(null);
   }
 };
-  const refreshAllMods = async () => {
+  const refreshAllMods = async (mealsInput) => {
     setSwapping('all_mods');
     setError(null);
-    setShowProfileUpdatePrompt(false);
+    if (!mealsInput) setShowProfileUpdatePrompt(false);
 
     try {
       const familyInfo = buildFamilyInfo();
-      const updatedMeals = { ...meals };
+      const mealsToUse = mealsInput || meals;
+      const updatedMeals = { ...mealsToUse };
       let totalModCount = 0;
 
       for (const day of DAYS) {
-        if (!meals[day]) continue;
+        if (!mealsToUse[day]) continue;
 
         const prompt =
-          `Given this meal: ${meals[day].name}, and this family:\n${familyInfo}\n` +
+          `Given this meal: ${mealsToUse[day].name}, and this family:\n${familyInfo}\n` +
           'List any modifications needed per person. ' +
           'Only include a modification if it is actually needed. ' +
           'If everyone can eat it as-is, return an empty array. ' +

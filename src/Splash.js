@@ -20,23 +20,42 @@ function Splash({ onDone }) {
         inset: 0,
         background: '#f7f7f5',
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         opacity: fading ? 0 : 1,
         transition: 'opacity 0.6s ease',
         zIndex: 9999,
-        pointerEvents: fading ? 'none' : 'auto'
       }}
     >
-      <img
-        src="/tablemate_logo.png"
-        alt="Tablemates"
-        style={{ width: '220px', marginBottom: '16px' }}
-      />
-      <p style={{ fontSize: '14px', color: '#aaa', fontFamily: 'sans-serif' }}>
-        dinner, handled.
-      </p>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center',
+        }}
+      >
+        <img
+          src="/tablemate_logo.png"
+          alt="Tablemates"
+          style={{
+            width: '220px',
+            display: 'block',
+          }}
+        />
+
+        <div
+          style={{
+            fontSize: '15px',
+            color: '#777',
+            fontFamily: 'sans-serif',
+            marginTop: '-6px', // pulls it snug under logo
+            lineHeight: 1.2,
+          }}
+        >
+          Dinner, handled.
+        </div>
+      </div>
     </div>
   );
 }

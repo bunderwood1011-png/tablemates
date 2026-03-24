@@ -56,9 +56,10 @@ function OnboardingScreen({ onContinue }) {
           <div style={{ display: 'grid', gap: '12px' }}>
             <div
               style={{
-                border: '1px solid #eef0ee',
+                border: '2px solid #1D9E75',
                 borderRadius: '16px',
-                padding: '16px'
+                padding: '16px',
+                background: '#f6fcf9'
               }}
             >
               <div style={{ fontWeight: '700', color: '#1a1a1a' }}>
@@ -73,10 +74,9 @@ function OnboardingScreen({ onContinue }) {
 
             <div
               style={{
-                border: '2px solid #1D9E75',
+                border: '1px solid #eef0ee',
                 borderRadius: '16px',
-                padding: '16px',
-                background: '#f6fcf9'
+                padding: '16px'
               }}
             >
               <div style={{ fontWeight: '700', color: '#1a1a1a' }}>

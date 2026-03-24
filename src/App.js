@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 import Splash from './Splash';
-import OnboardingScreen from './OnboardingScreen';
+import OnboardingTour from './OnboardingTour';
 import AuthScreen from './AuthScreen';
 import MainApp from './MainApp';
 
@@ -10,35 +10,31 @@ function App() {
   const [loadingSession, setLoadingSession] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
   const [isBetaUser, setIsBetaUser] = useState(false);
-  const [hasSeenOnboarding, setHasSeenOnboarding] = useState(
-    localStorage.getItem('tablemates_onboarding_seen') === 'true'
-  );
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
     const loadSession = async () => {
-  const { data } = await supabase.auth.getSession();
+      const { data } = await supabase.auth.getSession();
 
-  console.log('session:', data.session);
+      if (data.session) {
+        const { data: account } = await supabase
+          .from('accounts')
+          .select('beta_user')
+          .eq('user_id', data.session.user.id)
+          .single();
 
-  if (data.session) {
-    const { data: account } = await supabase
-      .from('accounts')
-      .select('beta_user')
-      .eq('user_id', data.session.user.id)
-      .single();
+        if (account?.beta_user) {
+          setIsBetaUser(true);
+        }
+      }
 
-    if (account?.beta_user) {
-      setIsBetaUser(true);
-    }
-  }
-
-  if (mounted) {
-    setSession(data.session);
-    setLoadingSession(false);
-  }
-};
+      if (mounted) {
+        setSession(data.session);
+        setLoadingSession(false);
+      }
+    };
 
     loadSession();
 
@@ -55,8 +51,14 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!session) return;
+    const seen = localStorage.getItem(`tablemates_onboarding_seen_${session.user.id}`) === 'true';
+    setHasSeenOnboarding(seen);
+  }, [session]);
+
   const handleFinishOnboarding = () => {
-    localStorage.setItem('tablemates_onboarding_seen', 'true');
+    localStorage.setItem(`tablemates_onboarding_seen_${session.user.id}`, 'true');
     setHasSeenOnboarding(true);
   };
 
@@ -82,15 +84,15 @@ function App() {
     );
   }
 
-  if (!session && !hasSeenOnboarding) {
-    return <OnboardingScreen onContinue={handleFinishOnboarding} />;
-  }
-
   if (!session) {
     return <AuthScreen />;
   }
 
- return <MainApp user={session.user} isBetaUser={isBetaUser} />;
+  if (!hasSeenOnboarding) {
+    return <OnboardingTour onDone={handleFinishOnboarding} />;
+  }
+
+  return <MainApp user={session.user} isBetaUser={isBetaUser} />;
 }
 
 export default App;
