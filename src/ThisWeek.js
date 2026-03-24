@@ -164,13 +164,50 @@ const mealFitsPace = (meal, pace) => {
   return effectiveMinutes <= maxMinutes;
 };
 
-const getDayPace = (dayData) => {
+const getDayPace = (dayData, dinnerStartTime) => {
   if (!dayData) return 'relaxed';
   if (typeof dayData === 'string') return dayData;
 
   const items = Array.isArray(dayData.items) ? dayData.items : [];
   if (!items.length) return 'relaxed';
 
+  const dinnerStart = dinnerStartTime ? parseTime(dinnerStartTime) : null;
+
+  if (dinnerStart) {
+    const prepWindowStart = dinnerStart - 120; // 2 hours before dinner
+
+    let minutesInPrepWindow = 0;
+    let eventRunsIntoDinner = false;
+
+    for (const item of items) {
+      const start = parseTime(item.start);
+      const end = parseTime(item.end);
+
+      if (start === null || end === null || end <= start) {
+        // No time info — conservatively assume it brushes the prep window
+        minutesInPrepWindow += 30;
+        continue;
+      }
+
+      // Overlaps with the 2-hour prep window before dinner?
+      if (end > prepWindowStart && start < dinnerStart) {
+        const overlapStart = Math.max(start, prepWindowStart);
+        const overlapEnd = Math.min(end, dinnerStart);
+        minutesInPrepWindow += Math.max(0, overlapEnd - overlapStart);
+      }
+
+      // Runs into or past dinner start?
+      if (end > dinnerStart) {
+        eventRunsIntoDinner = true;
+      }
+    }
+
+    if (eventRunsIntoDinner || minutesInPrepWindow >= 75) return 'busy';
+    if (minutesInPrepWindow >= 30) return 'moderate';
+    return 'relaxed';
+  }
+
+  // No dinner time set — fall back to total-day logic
   let totalMinutes = 0;
   let longEventCount = 0;
 
@@ -337,7 +374,7 @@ const clearNotice = () => {
     console.error('submitSwapFeedback error:', err);
 
     await logError({
-      userId: null,
+      userId: user?.id || null,
       action: 'submit_swap_feedback',
       error: err,
       context: {
@@ -417,7 +454,7 @@ const clearNotice = () => {
 
   const regenerateMealForDay = async (day, existingMeals) => {
     const familyInfo = buildFamilyInfo();
-    const pace = getDayPace(schedule?.[day]);
+    const pace = getDayPace(schedule?.[day], schedule?.dinner_start_time);
     const maxMinutes = getMaxMinutesForPace(pace);
 
     const otherMealNames = DAYS.filter((d) => d !== day)
@@ -451,7 +488,7 @@ const clearNotice = () => {
     const fixedMeals = { ...generatedMeals };
 
     for (const day of DAYS) {
-      const pace = getDayPace(schedule?.[day]);
+      const pace = getDayPace(schedule?.[day], schedule?.dinner_start_time);
       const meal = fixedMeals[day];
 
       if (!mealFitsPace(meal, pace)) {
@@ -512,7 +549,7 @@ RELAXED DAY MEAL RULES:
     try {
       const familyInfo = buildFamilyInfo();
       const scheduleInfo = DAYS.map((d) => {
-        const pace = getDayPace(schedule?.[d]);
+        const pace = getDayPace(schedule?.[d], schedule?.dinner_start_time);
         return `${d}: ${pace}\n${getPaceMealRules(pace)}`;
       }).join('\n\n');
 
@@ -558,7 +595,7 @@ await refreshAllMods(validatedMeals);
   console.error('suggestWeek error:', err);
 
   await logError({
-    userId: null,
+    userId: user?.id || null,
     action: 'generate_weekly_meals',
     error: err,
     context: {
@@ -596,7 +633,7 @@ const skipMealForDay = (day) => {
   const previousMealHadMods =
     Array.isArray(previousMeal?.modifications) &&
     previousMeal.modifications.some((mod) => mod.person);
-  const pace = getDayPace(schedule?.[day]);
+  const pace = getDayPace(schedule?.[day], schedule?.dinner_start_time);
 
   try {
     const current = meals[day] ? meals[day].name : '';
@@ -689,7 +726,7 @@ const skipMealForDay = (day) => {
     console.error('swapMeal error:', err);
 
     await logError({
-      userId: null,
+      userId: user?.id || null,
       action: 'swap_meal',
       error: err,
       context: {
@@ -794,7 +831,7 @@ onShoppingListReady(result.sections || []);
   console.error('generateShoppingList error:', err);
 
   await logError({
-    userId: null,
+    userId: user?.id || null,
     action: 'generate_shopping_list',
     error: err,
     context: {
@@ -1051,7 +1088,7 @@ useEffect(() => {
       )}
 
      {DAYS.map((day) => {
-  const dayPace = getDayPace(schedule?.[day]);
+  const dayPace = getDayPace(schedule?.[day], schedule?.dinner_start_time);
 
   return (
     <div key={day} className="week-meal-card polished-meal-card">

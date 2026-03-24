@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 import Splash from './Splash';
 import OnboardingTour from './OnboardingTour';
+import OnboardingScreen from './OnboardingScreen';
 import AuthScreen from './AuthScreen';
 import MainApp from './MainApp';
 
@@ -11,6 +12,7 @@ function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [isBetaUser, setIsBetaUser] = useState(false);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -85,7 +87,8 @@ function App() {
   }
 
   if (!session) {
-    return <AuthScreen />;
+    if (showAuth) return <AuthScreen />;
+    return <OnboardingScreen onLogin={() => setShowAuth(true)} />;
   }
 
   if (!hasSeenOnboarding) {

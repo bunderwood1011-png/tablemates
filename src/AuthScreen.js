@@ -5,6 +5,7 @@ function AuthScreen() {
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -17,14 +18,26 @@ function AuthScreen() {
 
     try {
       if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password
-        });
+        if (!inviteCode.trim()) {
+          setError('An invite code is required to create an account.');
+          setLoading(false);
+          return;
+        }
 
-        if (error) throw error;
+        const { error: signUpError } = await supabase.auth.signUp({ email, password });
+        if (signUpError) throw signUpError;
 
-        setMessage('Account created. Check your email if confirmation is required, then log in.');
+        const { data: redeemed, error: redeemError } = await supabase
+          .rpc('redeem_invite_code', { invite_code: inviteCode.trim() });
+
+        if (redeemError || !redeemed) {
+          setError('Invalid or already used invite code. Contact us if you think this is a mistake.');
+          setLoading(false);
+          return;
+        }
+
+        setMessage('Account created! Log in to get started.');
+        setMode('login');
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
@@ -77,6 +90,7 @@ function AuthScreen() {
               setMode('login');
               setError('');
               setMessage('');
+              setInviteCode('');
             }}
             style={{
               flex: 1,
@@ -98,6 +112,7 @@ function AuthScreen() {
               setMode('signup');
               setError('');
               setMessage('');
+              setInviteCode('');
             }}
             style={{
               flex: 1,
@@ -156,6 +171,28 @@ function AuthScreen() {
               }}
             />
           </div>
+
+          {mode === 'signup' && (
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#555' }}>
+                Invite code
+              </label>
+              <input
+                type="text"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                placeholder="Enter your invite code"
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  borderRadius: '14px',
+                  border: '1px solid #ddd',
+                  fontSize: '14px',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+          )}
 
           {error && (
             <div
