@@ -293,6 +293,22 @@ function AccountSupport({ onLogout }) {
             <ChevronRight />
           </div>
 
+          <div style={sectionLabelStyle}>about</div>
+          <div style={{ ...sectionCardStyle, cursor: 'default' }}>
+            <div style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a', marginBottom: '10px' }}>
+              About Tablemates
+            </div>
+            <div style={{ fontSize: '14px', color: '#555', lineHeight: '1.7', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <p style={{ margin: 0 }}>Tablemates was built by a mom of six who was laid off from her job — because of AI.</p>
+              <p style={{ margin: 0 }}>Instead of stepping back, she decided to use it.</p>
+              <p style={{ margin: 0 }}>Between six kids, different tastes, allergies, and sports schedules that change every week, dinner was a daily source of stress. No app quite solved it. So she built one.</p>
+              <p style={{ margin: 0 }}>Tablemates is the meal planner she always wished existed — one that actually knows your family, respects your time, and handles the part of the day that shouldn't be this hard.</p>
+            </div>
+            <div style={{ fontSize: '13px', color: '#1D9E75', fontStyle: 'italic', marginTop: '14px', fontWeight: '600' }}>
+              dinner, handled. 🍽️
+            </div>
+          </div>
+
           <div style={sectionLabelStyle}>legal</div>
           <div onClick={() => setView('privacy')} style={cardStyle}>
             <div>
