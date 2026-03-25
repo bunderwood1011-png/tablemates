@@ -536,6 +536,48 @@ RELAXED DAY MEAL RULES:
 `;
   };
 
+  const fetchSavedRecipes = async () => {
+    if (!user?.id) return [];
+    try {
+      const { data: userRecipes } = await supabase
+        .from('user_recipes')
+        .select('recipe_id, favorite')
+        .eq('user_id', user.id)
+        .limit(50);
+
+      if (!userRecipes?.length) return [];
+
+      const recipeIds = userRecipes.map((r) => r.recipe_id);
+      const { data: recipeDetails } = await supabase
+        .from('recipes')
+        .select('id, name, total_minutes, time_label')
+        .in('id', recipeIds);
+
+      if (!recipeDetails?.length) return [];
+
+      const favoriteIds = new Set(
+        userRecipes.filter((r) => r.favorite).map((r) => r.recipe_id)
+      );
+
+      return recipeDetails.map((r) => ({
+        name: r.name,
+        minutes: r.total_minutes,
+        timeLabel: r.time_label,
+        favorite: favoriteIds.has(r.id),
+      }));
+    } catch {
+      return [];
+    }
+  };
+
+  const buildSavedRecipesPrompt = (savedRecipes) => {
+    if (!savedRecipes?.length) return '';
+    const lines = savedRecipes
+      .map((r) => `- ${r.name} (${r.timeLabel || `${r.minutes} min`})${r.favorite ? ' ★ favorite' : ''}`)
+      .join('\n');
+    return `This family has saved meals they enjoy. Use them when the pace and schedule allow — favorites especially:\n${lines}\n`;
+  };
+
   const suggestWeek = async () => {
     setLoading(true);
     setError(null);
@@ -558,6 +600,9 @@ RELAXED DAY MEAL RULES:
         .filter(Boolean)
         .join(', ');
 
+      const savedRecipes = await fetchSavedRecipes();
+      const savedRecipesPrompt = buildSavedRecipesPrompt(savedRecipes);
+
       const prompt =
         'You are a family meal planner. Suggest one dinner per night for a week. ' +
         'Busy nights need meals 30 min or less, moderate nights 60 min or less, relaxed nights can be any length. ' +
@@ -573,6 +618,7 @@ RELAXED DAY MEAL RULES:
         'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
         'Do not repeat meals within the same week. ' +
         (existingMealNames ? `Avoid repeating these previously suggested meals if possible: ${existingMealNames}. ` : '') +
+        (savedRecipesPrompt ? savedRecipesPrompt : '') +
         `Family:\n${familyInfo}\n` +
         `Schedule and pace rules:\n${scheduleInfo}\n` +
         'Return ONLY valid JSON matching this template, and fill in every field exactly: ' +
@@ -651,6 +697,9 @@ const skipMealForDay = (day) => {
         ? 'any length is allowed, but keep it practical'
         : `${maxMinutes} minutes or less total, including prep and cook time`;
 
+    const savedRecipes = await fetchSavedRecipes();
+    const savedRecipesPrompt = buildSavedRecipesPrompt(savedRecipes);
+
     const prompt =
       `Suggest one dinner for ${day} night. ` +
       `This is a ${pace} day. ` +
@@ -665,6 +714,7 @@ const skipMealForDay = (day) => {
       'Lasagna, casseroles, and stuffed peppers take at least 60 minutes total. ' +
       'Do not label oven meals as 20–30 minutes. ' +
       'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
+      (savedRecipesPrompt ? savedRecipesPrompt : '') +
       `Family:\n${familyInfo}\n` +
       (current
         ? `The current meal is: ${current}. You MUST NOT suggest this meal or anything very similar to it. `

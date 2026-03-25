@@ -146,7 +146,7 @@ function OnboardingScreen({ onLogin }) {
             padding: '4px',
           }}
         >
-          Already have access? Log in
+          Already have access or Chosen as a Beta User? Log in or Sign Up with your access code. 
         </button>
       </div>
     </div>

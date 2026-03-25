@@ -14,6 +14,15 @@ function App() {
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
 
+  // Capture referral code from URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (ref) {
+      localStorage.setItem('tablemates_referral_code', ref.toUpperCase());
+    }
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 

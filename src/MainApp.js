@@ -673,6 +673,7 @@ console.log('Meals saved:', upsertData);
 
   {activeTab === 'recipes' && (
     <Recipes
+  user={user}
   recipes={recipes}
   setRecipes={setRecipes}
   highlightedRecipe={highlightedRecipe}

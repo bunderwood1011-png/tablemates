@@ -67,6 +67,11 @@ function AccountSupport({ onLogout }) {
   const [deleteMsg, setDeleteMsg] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Referral state
+  const [referralCode, setReferralCode] = useState('');
+  const [referralCount, setReferralCount] = useState(0);
+  const [referralCopied, setReferralCopied] = useState(false);
+
   useEffect(() => {
     const loadUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -85,6 +90,25 @@ function AccountSupport({ onLogout }) {
     };
     loadUser();
   }, []);
+
+  useEffect(() => {
+    const loadReferral = async () => {
+      const { data: code } = await supabase.rpc('get_referral_code');
+      const { data: count } = await supabase.rpc('get_referral_count');
+      if (code) setReferralCode(code);
+      if (count != null) setReferralCount(count);
+    };
+    loadReferral();
+  }, []);
+
+  const referralLink = referralCode ? `https://www.tablemates.io?ref=${referralCode}` : '';
+
+  const handleCopyReferral = () => {
+    if (!referralLink) return;
+    navigator.clipboard.writeText(referralLink);
+    setReferralCopied(true);
+    setTimeout(() => setReferralCopied(false), 2000);
+  };
 
   const handleEmailUpdate = async () => {
     setEmailMsg('');
@@ -274,6 +298,50 @@ function AccountSupport({ onLogout }) {
               <div style={cardSubtitleStyle}>Email, password, and membership</div>
             </div>
             <ChevronRight />
+          </div>
+
+          <div style={sectionLabelStyle}>refer a friend</div>
+          <div style={{ ...sectionCardStyle, cursor: 'default' }}>
+            <div style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a', marginBottom: '6px' }}>
+              Invite someone to Tablemates
+            </div>
+            <div style={{ fontSize: '13px', color: '#666', lineHeight: '1.6', marginBottom: '14px' }}>
+              Share your link — anyone you invite will be first in line when we open up.
+              {referralCount > 0 && (
+                <span style={{ display: 'block', marginTop: '6px', color: '#1D9E75', fontWeight: '600' }}>
+                  {referralCount} {referralCount === 1 ? 'person' : 'people'} joined with your link
+                </span>
+              )}
+            </div>
+            <div style={{
+              background: '#f7f7f5',
+              borderRadius: '12px',
+              padding: '11px 13px',
+              fontSize: '13px',
+              color: '#444',
+              wordBreak: 'break-all',
+              marginBottom: '10px',
+              fontFamily: 'monospace',
+            }}>
+              {referralLink || '…'}
+            </div>
+            <button
+              onClick={handleCopyReferral}
+              style={{
+                width: '100%',
+                padding: '11px 16px',
+                borderRadius: '12px',
+                border: 'none',
+                background: referralCopied ? '#E1F5EE' : '#1D9E75',
+                color: referralCopied ? '#1D9E75' : 'white',
+                fontWeight: '600',
+                fontSize: '14px',
+                cursor: 'pointer',
+                transition: 'background 0.2s',
+              }}
+            >
+              {referralCopied ? 'Copied!' : 'Copy invite link'}
+            </button>
           </div>
 
           <div style={sectionLabelStyle}>support</div>

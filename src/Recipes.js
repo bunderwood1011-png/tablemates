@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import PastWeeks from './PastWeeks';
+import { supabase } from './supabaseClient';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 function Recipes({
+  user,
   recipes,
   setRecipes,
   highlightedRecipe,
@@ -18,6 +20,88 @@ function Recipes({
   const [showIngredients, setShowIngredients] = useState({});
   const [recipeToPlan, setRecipeToPlan] = useState(null);
   const [view, setView] = useState('all'); // 'all' | 'favorites' | 'past'
+
+  // Add recipe form
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [formName, setFormName] = useState('');
+  const [formPrepTime, setFormPrepTime] = useState('');
+  const [formCookTime, setFormCookTime] = useState('');
+  const [formDescription, setFormDescription] = useState('');
+  const [formIngredients, setFormIngredients] = useState([]);
+  const [formIngredientInput, setFormIngredientInput] = useState('');
+  const [formSteps, setFormSteps] = useState([]);
+  const [formStepInput, setFormStepInput] = useState('');
+  const [formSaving, setFormSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  const totalMinutes = (parseInt(formPrepTime) || 0) + (parseInt(formCookTime) || 0);
+
+  const addIngredient = () => {
+    const val = formIngredientInput.trim();
+    if (!val) return;
+    setFormIngredients((prev) => [...prev, val]);
+    setFormIngredientInput('');
+  };
+
+  const addStep = () => {
+    const val = formStepInput.trim();
+    if (!val) return;
+    setFormSteps((prev) => [...prev, val]);
+    setFormStepInput('');
+  };
+
+  const resetForm = () => {
+    setFormName('');
+    setFormPrepTime('');
+    setFormCookTime('');
+    setFormDescription('');
+    setFormIngredients([]);
+    setFormIngredientInput('');
+    setFormSteps([]);
+    setFormStepInput('');
+    setFormError('');
+    setShowAddForm(false);
+  };
+
+  const handleSaveRecipe = async () => {
+    if (!formName.trim()) { setFormError('Meal name is required.'); return; }
+    if (totalMinutes === 0) { setFormError('Please enter a prep and/or cook time.'); return; }
+
+    setFormSaving(true);
+    setFormError('');
+
+    const { data: recipe, error } = await supabase
+      .from('recipes')
+      .insert({
+        name: formName.trim(),
+        description: formDescription.trim() || null,
+        prep_minutes: parseInt(formPrepTime) || 0,
+        cook_minutes: parseInt(formCookTime) || 0,
+        time_label: `${totalMinutes} min`,
+        ingredients: formIngredients,
+        steps: formSteps,
+        source_type: 'user',
+        is_active: true,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      setFormError(`Could not save recipe: ${error.message}`);
+      setFormSaving(false);
+      return;
+    }
+
+    await supabase.from('user_recipes').insert({
+      user_id: user.id,
+      recipe_id: recipe.id,
+      favorite: false,
+    });
+
+    setRecipes((prev) => [{ ...recipe, favorite: false }, ...prev]);
+    setFormSaving(false);
+    resetForm();
+  };
 
   useEffect(() => {
   if (!highlightedRecipe) return;
@@ -52,8 +136,15 @@ function Recipes({
     );
   };
 
-  const deleteRecipe = (id) => {
+  const deleteRecipe = async (id) => {
+    const recipe = recipes.find((r) => r.id === id);
     setRecipes((prev) => prev.filter((r) => r.id !== id));
+
+    await supabase.from('user_recipes').delete().eq('recipe_id', id).eq('user_id', user.id);
+
+    if (recipe?.source_type === 'user') {
+      await supabase.from('recipes').delete().eq('id', id);
+    }
   };
 
   const openPlanChooser = (recipe) => {
@@ -85,98 +176,6 @@ const addRecipeToSpecificDay = async (recipe, day) => {
 
   const displayed =
     view === 'favorites' ? recipes.filter((r) => r.favorite) : recipes;
-
-if (!recipes || recipes.length === 0) {
-  return (
-    <div>
-      <div
-        style={{
-          maxWidth: '520px',
-          margin: '0 auto 18px',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            gap: '10px',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-          }}
-        >
-          <button
-            onClick={() => setView('all')}
-            style={{
-              padding: '10px 16px',
-              borderRadius: '14px',
-              border: view === 'all' ? '1px solid #8FD8BF' : '1px solid #E8E8E8',
-              background: view === 'all' ? '#F3FBF7' : 'white',
-              color: view === 'all' ? '#1D9E75' : '#555',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            all
-          </button>
-
-          <button
-            onClick={() => setView('favorites')}
-            style={{
-              padding: '10px 16px',
-              borderRadius: '14px',
-              border: view === 'favorites' ? '1px solid #8FD8BF' : '1px solid #E8E8E8',
-              background: view === 'favorites' ? '#F3FBF7' : 'white',
-              color: view === 'favorites' ? '#1D9E75' : '#555',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            favorites
-          </button>
-
-          <button
-            onClick={() => setView('past')}
-            style={{
-              padding: '10px 16px',
-              borderRadius: '14px',
-              border: view === 'past' ? '1px solid #F2B08D' : '1px solid #E8E8E8',
-              background: view === 'past' ? '#FFF8F4' : 'white',
-              color: view === 'past' ? '#E46A2E' : '#555',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            past weeks
-          </button>
-        </div>
-      </div>
-
-      {view === 'past' ? (
-        <PastWeeks
-          savedWeeks={savedWeeks}
-          setSavedWeeks={setSavedWeeks}
-          onNavigateToRecipe={(meal) => {
-            setHighlightedRecipe(meal);
-            setView('all');
-          }}
-        />
-      ) : (
-        <div className="empty-state">
-          <div className="empty-icon">🍳</div>
-          <div className="empty-title">no recipes yet</div>
-          <div className="empty-sub">
-            tap "how to cook" on any meal to generate and save a recipe here
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 return (
   <div>
@@ -250,7 +249,36 @@ return (
           past weeks
         </button>
       </div>
+
+      <button
+        onClick={() => setShowAddForm(true)}
+        style={{
+          marginTop: '12px',
+          width: '100%',
+          padding: '11px',
+          borderRadius: '14px',
+          border: '1.5px dashed #1D9E75',
+          background: 'transparent',
+          color: '#1D9E75',
+          fontSize: '14px',
+          fontWeight: '600',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+        }}
+      >
+        + add a recipe
+      </button>
     </div>
+
+    {(!recipes || recipes.length === 0) && view !== 'past' && (
+      <div className="empty-state">
+        <div className="empty-icon">🍳</div>
+        <div className="empty-title">no recipes yet</div>
+        <div className="empty-sub">
+          tap "how to cook" on any meal, or add your own above
+        </div>
+      </div>
+    )}
 
     {view === 'past' ? (
       <PastWeeks
@@ -580,6 +608,174 @@ return (
           );
         })}
       </>
+    )}
+
+    {showAddForm && (
+      <div className="modal-overlay" onClick={resetForm}>
+        <div
+          className="modal-sheet"
+          onClick={(e) => e.stopPropagation()}
+          style={{ maxWidth: '460px', maxHeight: '90vh', overflowY: 'auto' }}
+        >
+          <div className="modal-handle" />
+          <div style={{ fontSize: '20px', fontWeight: '700', color: '#1F2937', marginBottom: '18px' }}>
+            Add a recipe
+          </div>
+
+          {/* Name */}
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#666', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Meal name *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Pancakes for dinner"
+              value={formName}
+              onChange={(e) => setFormName(e.target.value)}
+              style={{ width: '100%', padding: '11px 13px', borderRadius: '12px', border: '1px solid #ddd', fontFamily: 'inherit', fontSize: '14px', boxSizing: 'border-box' }}
+            />
+          </div>
+
+          {/* Prep + Cook time */}
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#666', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Time *
+            </label>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '12px', color: '#999', marginBottom: '4px' }}>Prep (min)</div>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="10"
+                  value={formPrepTime}
+                  onChange={(e) => setFormPrepTime(e.target.value)}
+                  style={{ width: '100%', padding: '11px 13px', borderRadius: '12px', border: '1px solid #ddd', fontFamily: 'inherit', fontSize: '14px', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '12px', color: '#999', marginBottom: '4px' }}>Cook (min)</div>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="20"
+                  value={formCookTime}
+                  onChange={(e) => setFormCookTime(e.target.value)}
+                  style={{ width: '100%', padding: '11px 13px', borderRadius: '12px', border: '1px solid #ddd', fontFamily: 'inherit', fontSize: '14px', boxSizing: 'border-box' }}
+                />
+              </div>
+              {totalMinutes > 0 && (
+                <div style={{ fontSize: '13px', color: '#1D9E75', fontWeight: '600', whiteSpace: 'nowrap', paddingTop: '18px' }}>
+                  = {totalMinutes} min total
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Description */}
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#666', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Notes (optional)
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Kids love this, great for busy nights"
+              value={formDescription}
+              onChange={(e) => setFormDescription(e.target.value)}
+              style={{ width: '100%', padding: '11px 13px', borderRadius: '12px', border: '1px solid #ddd', fontFamily: 'inherit', fontSize: '14px', boxSizing: 'border-box' }}
+            />
+          </div>
+
+          {/* Ingredients */}
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#666', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Ingredients
+            </label>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              <input
+                type="text"
+                placeholder="e.g. 2 cups flour"
+                value={formIngredientInput}
+                onChange={(e) => setFormIngredientInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addIngredient())}
+                style={{ flex: 1, padding: '11px 13px', borderRadius: '12px', border: '1px solid #ddd', fontFamily: 'inherit', fontSize: '14px', boxSizing: 'border-box' }}
+              />
+              <button
+                type="button"
+                onClick={addIngredient}
+                style={{ padding: '11px 16px', borderRadius: '12px', border: 'none', background: '#1D9E75', color: 'white', fontWeight: '600', fontSize: '14px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                + add
+              </button>
+            </div>
+            {formIngredients.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {formIngredients.map((ing, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f0faf5', border: '1px solid #b8e8d4', borderRadius: '20px', padding: '4px 10px', fontSize: '13px', color: '#1D9E75' }}>
+                    {ing}
+                    <button onClick={() => setFormIngredients((prev) => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1D9E75', fontSize: '14px', padding: 0, lineHeight: 1 }}>×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Steps */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#666', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Steps
+            </label>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              <input
+                type="text"
+                placeholder={`Step ${formSteps.length + 1}…`}
+                value={formStepInput}
+                onChange={(e) => setFormStepInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addStep())}
+                style={{ flex: 1, padding: '11px 13px', borderRadius: '12px', border: '1px solid #ddd', fontFamily: 'inherit', fontSize: '14px', boxSizing: 'border-box' }}
+              />
+              <button
+                type="button"
+                onClick={addStep}
+                style={{ padding: '11px 16px', borderRadius: '12px', border: 'none', background: '#1D9E75', color: 'white', fontWeight: '600', fontSize: '14px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                + add
+              </button>
+            </div>
+            {formSteps.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {formSteps.map((step, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', background: '#f9f9f9', borderRadius: '10px', padding: '8px 10px' }}>
+                    <div style={{ background: '#E46A2E', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', flexShrink: 0 }}>{i + 1}</div>
+                    <div style={{ flex: 1, fontSize: '13px', color: '#444', paddingTop: '2px' }}>{step}</div>
+                    <button onClick={() => setFormSteps((prev) => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', fontSize: '16px', padding: 0, lineHeight: 1 }}>×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {formError && (
+            <div style={{ marginBottom: '12px', padding: '10px 12px', borderRadius: '10px', background: '#FCEBEB', color: '#A32D2D', fontSize: '13px' }}>
+              {formError}
+            </div>
+          )}
+
+          <button
+            onClick={handleSaveRecipe}
+            disabled={formSaving}
+            style={{ width: '100%', padding: '13px', borderRadius: '14px', border: 'none', background: '#1D9E75', color: 'white', fontSize: '15px', fontWeight: '700', cursor: formSaving ? 'default' : 'pointer', opacity: formSaving ? 0.7 : 1, marginBottom: '10px' }}
+          >
+            {formSaving ? 'Saving…' : 'Save recipe'}
+          </button>
+          <button
+            onClick={resetForm}
+            style={{ width: '100%', padding: '11px', borderRadius: '14px', border: 'none', background: 'transparent', color: '#999', fontSize: '14px', cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
     )}
 
     {recipeToPlan && (

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 
 function AuthScreen() {
@@ -9,6 +9,12 @@ function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [savedReferralCode, setSavedReferralCode] = useState('');
+
+  useEffect(() => {
+    const ref = localStorage.getItem('tablemates_referral_code');
+    if (ref) setSavedReferralCode(ref);
+  }, []);
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -36,14 +42,15 @@ function AuthScreen() {
           return;
         }
 
+        if (savedReferralCode) {
+          await supabase.rpc('use_referral_code', { ref_code: savedReferralCode });
+          localStorage.removeItem('tablemates_referral_code');
+        }
+
         setMessage('Account created! Log in to get started.');
         setMode('login');
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
     } catch (err) {
@@ -51,6 +58,15 @@ function AuthScreen() {
     }
 
     setLoading(false);
+  };
+
+  const inputStyle = {
+    width: '100%',
+    padding: '14px',
+    borderRadius: '14px',
+    border: '1px solid #ddd',
+    fontSize: '14px',
+    boxSizing: 'border-box',
   };
 
   return (
@@ -86,21 +102,12 @@ function AuthScreen() {
         <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
           <button
             type="button"
-            onClick={() => {
-              setMode('login');
-              setError('');
-              setMessage('');
-              setInviteCode('');
-            }}
+            onClick={() => { setMode('login'); setError(''); setMessage(''); setInviteCode(''); }}
             style={{
-              flex: 1,
-              padding: '12px',
-              borderRadius: '12px',
-              border: 'none',
+              flex: 1, padding: '12px', borderRadius: '12px', border: 'none',
               background: mode === 'login' ? '#1D9E75' : '#eef0ee',
               color: mode === 'login' ? 'white' : '#666',
-              fontWeight: '600',
-              cursor: 'pointer'
+              fontWeight: '600', cursor: 'pointer'
             }}
           >
             Log in
@@ -108,21 +115,12 @@ function AuthScreen() {
 
           <button
             type="button"
-            onClick={() => {
-              setMode('signup');
-              setError('');
-              setMessage('');
-              setInviteCode('');
-            }}
+            onClick={() => { setMode('signup'); setError(''); setMessage(''); setInviteCode(''); }}
             style={{
-              flex: 1,
-              padding: '12px',
-              borderRadius: '12px',
-              border: 'none',
+              flex: 1, padding: '12px', borderRadius: '12px', border: 'none',
               background: mode === 'signup' ? '#1D9E75' : '#eef0ee',
               color: mode === 'signup' ? 'white' : '#666',
-              fontWeight: '600',
-              cursor: 'pointer'
+              fontWeight: '600', cursor: 'pointer'
             }}
           >
             Sign up
@@ -140,14 +138,7 @@ function AuthScreen() {
               onChange={(e) => setEmail(e.target.value)}
               required
               placeholder="you@example.com"
-              style={{
-                width: '100%',
-                padding: '14px',
-                borderRadius: '14px',
-                border: '1px solid #ddd',
-                fontSize: '14px',
-                boxSizing: 'border-box'
-              }}
+              style={inputStyle}
             />
           </div>
 
@@ -161,18 +152,25 @@ function AuthScreen() {
               onChange={(e) => setPassword(e.target.value)}
               required
               placeholder="At least 6 characters"
-              style={{
-                width: '100%',
-                padding: '14px',
-                borderRadius: '14px',
-                border: '1px solid #ddd',
-                fontSize: '14px',
-                boxSizing: 'border-box'
-              }}
+              style={inputStyle}
             />
           </div>
 
-          {mode === 'signup' && (
+          {mode === 'signup' && savedReferralCode && (
+            <div style={{
+              marginBottom: '16px',
+              padding: '12px 14px',
+              borderRadius: '12px',
+              background: '#E1F5EE',
+              color: '#1D9E75',
+              fontSize: '13px',
+              fontWeight: '600'
+            }}>
+              You were invited by a friend — welcome! 🎉
+            </div>
+          )}
+
+          {mode === 'signup' && !savedReferralCode && (
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', color: '#555' }}>
                 Invite code
@@ -182,44 +180,25 @@ function AuthScreen() {
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value)}
                 placeholder="Enter your invite code"
-                style={{
-                  width: '100%',
-                  padding: '14px',
-                  borderRadius: '14px',
-                  border: '1px solid #ddd',
-                  fontSize: '14px',
-                  boxSizing: 'border-box'
-                }}
+                style={inputStyle}
               />
             </div>
           )}
 
           {error && (
-            <div
-              style={{
-                marginBottom: '12px',
-                padding: '12px',
-                borderRadius: '12px',
-                background: '#FCEBEB',
-                color: '#A32D2D',
-                fontSize: '13px'
-              }}
-            >
+            <div style={{
+              marginBottom: '12px', padding: '12px', borderRadius: '12px',
+              background: '#FCEBEB', color: '#A32D2D', fontSize: '13px'
+            }}>
               {error}
             </div>
           )}
 
           {message && (
-            <div
-              style={{
-                marginBottom: '12px',
-                padding: '12px',
-                borderRadius: '12px',
-                background: '#E1F5EE',
-                color: '#1D9E75',
-                fontSize: '13px'
-              }}
-            >
+            <div style={{
+              marginBottom: '12px', padding: '12px', borderRadius: '12px',
+              background: '#E1F5EE', color: '#1D9E75', fontSize: '13px'
+            }}>
               {message}
             </div>
           )}
@@ -228,15 +207,9 @@ function AuthScreen() {
             type="submit"
             disabled={loading}
             style={{
-              width: '100%',
-              padding: '14px',
-              borderRadius: '14px',
-              border: 'none',
-              background: '#1D9E75',
-              color: 'white',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer'
+              width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
+              background: '#1D9E75', color: 'white', fontSize: '14px',
+              fontWeight: '600', cursor: 'pointer'
             }}
           >
             {loading ? 'Please wait...' : mode === 'signup' ? 'Create account' : 'Log in'}
