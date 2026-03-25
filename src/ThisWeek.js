@@ -288,9 +288,13 @@ const slowMessages = [
   };
 
   const callAI = async (prompt, model) => {
-    const response = await fetch('https://tablemates-psi.vercel.app/api/ai', {
+    const { data: { session } } = await supabase.auth.getSession();
+    const response = await fetch('/api/ai', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token}`,
+      },
       body: JSON.stringify({ prompt, model })
     });
 

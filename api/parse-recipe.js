@@ -1,18 +1,61 @@
 import dotenv from 'dotenv';
+import { createClient } from '@supabase/supabase-js';
 
 dotenv.config({ path: '.env.local' });
 
+const ALLOWED_ORIGINS = [
+  'https://www.tablemates.io',
+  'https://tablemates.io',
+  'https://tablemates-psi.vercel.app',
+  'http://localhost:3000',
+];
+
+function isValidPublicUrl(urlString) {
+  let parsed;
+  try { parsed = new URL(urlString); } catch { return false; }
+  if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+  const h = parsed.hostname;
+  if (h === 'localhost') return false;
+  if (/^127\./.test(h)) return false;
+  if (/^10\./.test(h)) return false;
+  if (/^192\.168\./.test(h)) return false;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return false;
+  if (h === '169.254.169.254') return false;
+  if (h.endsWith('.local')) return false;
+  return true;
+}
+
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
+  // Verify Supabase auth token
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const token = authHeader.slice(7);
+  const supabase = createClient(
+    process.env.REACT_APP_SUPABASE_URL,
+    process.env.REACT_APP_SUPABASE_ANON_KEY
+  );
+  const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+  if (authError || !authUser) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   const { url } = req.body || {};
   if (!url || typeof url !== 'string') {
     return res.status(400).json({ error: 'Missing URL' });
+  }
+
+  if (!isValidPublicUrl(url)) {
+    return res.status(400).json({ error: 'Invalid or disallowed URL.' });
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
