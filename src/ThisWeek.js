@@ -536,6 +536,72 @@ RELAXED DAY MEAL RULES:
 `;
   };
 
+  const fetchRecentFeedback = async () => {
+    if (!user?.id) return [];
+    try {
+      const { data } = await supabase
+        .from('meal_feedback')
+        .select('meal_name, feedback_reason, feedback_text')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(40);
+      return data || [];
+    } catch {
+      return [];
+    }
+  };
+
+  const buildFeedbackPrompt = (feedback) => {
+    if (!feedback?.length) return '';
+    const reasonLabels = {
+      too_long: 'takes too long to make',
+      dont_like_ingredients: "family doesn't like the ingredients",
+      not_kid_friendly: 'not kid-friendly',
+      other: 'not a good fit',
+    };
+    const lines = feedback.map((f) => {
+      const label = f.feedback_reason === 'other' && f.feedback_text
+        ? f.feedback_text
+        : (reasonLabels[f.feedback_reason] || 'not a good fit');
+      return `- ${f.meal_name}: ${label}`;
+    });
+    return (
+      'This family has rejected these meals before. Do not suggest them again, ' +
+      'and avoid meals that share the same issue (e.g. if a meal was too long, avoid other long meals on busy nights):\n' +
+      lines.join('\n') + '\n'
+    );
+  };
+
+  const fetchCommunityRecipes = async (excludeIds = []) => {
+    try {
+      let query = supabase
+        .from('recipes')
+        .select('name, total_minutes, time_label')
+        .eq('is_active', true)
+        .limit(25);
+
+      if (excludeIds.length > 0) {
+        query = query.not('id', 'in', `(${excludeIds.join(',')})`);
+      }
+
+      const { data } = await query;
+      return data || [];
+    } catch {
+      return [];
+    }
+  };
+
+  const buildCommunityRecipesPrompt = (communityRecipes) => {
+    if (!communityRecipes?.length) return '';
+    const lines = communityRecipes
+      .map((r) => `- ${r.name} (${r.time_label || `${r.total_minutes} min`})`)
+      .join('\n');
+    return (
+      'If none of the family\'s saved meals fit a particular night, here are other meals from our recipe library to draw from:\n' +
+      lines + '\n'
+    );
+  };
+
   const fetchSavedRecipes = async () => {
     if (!user?.id) return [];
     try {
@@ -602,6 +668,10 @@ RELAXED DAY MEAL RULES:
 
       const savedRecipes = await fetchSavedRecipes();
       const savedRecipesPrompt = buildSavedRecipesPrompt(savedRecipes);
+      const communityRecipes = await fetchCommunityRecipes();
+      const communityRecipesPrompt = buildCommunityRecipesPrompt(communityRecipes);
+      const recentFeedback = await fetchRecentFeedback();
+      const feedbackPrompt = buildFeedbackPrompt(recentFeedback);
 
       const prompt =
         'You are a family meal planner. Suggest one dinner per night for a week. ' +
@@ -619,6 +689,8 @@ RELAXED DAY MEAL RULES:
         'Do not repeat meals within the same week. ' +
         (existingMealNames ? `Avoid repeating these previously suggested meals if possible: ${existingMealNames}. ` : '') +
         (savedRecipesPrompt ? savedRecipesPrompt : '') +
+        (communityRecipesPrompt ? communityRecipesPrompt : '') +
+        (feedbackPrompt ? feedbackPrompt : '') +
         `Family:\n${familyInfo}\n` +
         `Schedule and pace rules:\n${scheduleInfo}\n` +
         'Return ONLY valid JSON matching this template, and fill in every field exactly: ' +
@@ -635,7 +707,7 @@ const message = buildMealPlanUpdateMessage({
 });
 
 showNotice(message, 'info');
-setMeals(validatedMeals);
+await setMeals(validatedMeals);
 await refreshAllMods(validatedMeals);
 } catch (err) {
   console.error('suggestWeek error:', err);
@@ -699,6 +771,10 @@ const skipMealForDay = (day) => {
 
     const savedRecipes = await fetchSavedRecipes();
     const savedRecipesPrompt = buildSavedRecipesPrompt(savedRecipes);
+    const communityRecipes = await fetchCommunityRecipes();
+    const communityRecipesPrompt = buildCommunityRecipesPrompt(communityRecipes);
+    const recentFeedback = await fetchRecentFeedback();
+    const feedbackPrompt = buildFeedbackPrompt(recentFeedback);
 
     const prompt =
       `Suggest one dinner for ${day} night. ` +
@@ -715,6 +791,8 @@ const skipMealForDay = (day) => {
       'Do not label oven meals as 20–30 minutes. ' +
       'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
       (savedRecipesPrompt ? savedRecipesPrompt : '') +
+      (communityRecipesPrompt ? communityRecipesPrompt : '') +
+      (feedbackPrompt ? feedbackPrompt : '') +
       `Family:\n${familyInfo}\n` +
       (current
         ? `The current meal is: ${current}. You MUST NOT suggest this meal or anything very similar to it. `
@@ -804,14 +882,15 @@ const skipMealForDay = (day) => {
       let totalModCount = 0;
 
       for (const day of DAYS) {
-        if (!mealsToUse[day]) continue;
+        if (!mealsToUse[day] || mealsToUse[day].skipped) continue;
 
         const prompt =
-          `Given this meal: ${mealsToUse[day].name}, and this family:\n${familyInfo}\n` +
-          'List any modifications needed per person. ' +
-          'Only include a modification if it is actually needed. ' +
-          'If everyone can eat it as-is, return an empty array. ' +
-          'Return ONLY valid JSON: {"modifications":[{"person":"Name","note":"note"}]}';
+          `Meal: ${mealsToUse[day].name}\n` +
+          `Family:\n${familyInfo}\n\n` +
+          'For each person, suggest a modification if the meal contains something they dislike or are allergic to, or if a simple tweak would make it work better for them. ' +
+          'Think about spice levels, textures, sauces on the side, portion size differences, or ingredient swaps. ' +
+          'Only skip a person if the meal genuinely works perfectly for them as written. ' +
+          'Return ONLY valid JSON: {"modifications":[{"person":"Name","note":"short note"}]}';
 
         const result = await callAI(prompt);
         const mods = Array.isArray(result.modifications) ? result.modifications : [];
@@ -824,7 +903,7 @@ const skipMealForDay = (day) => {
         totalModCount += mods.filter((mod) => mod.person).length;
       }
 
-      setMeals(updatedMeals);
+      await setMeals(updatedMeals);
       onMealsRegenerated();
 
       if (totalModCount === 0) {

@@ -33,6 +33,10 @@ function Recipes({
   const [formStepInput, setFormStepInput] = useState('');
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [urlInput, setUrlInput] = useState('');
+  const [urlParsing, setUrlParsing] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [editingRecipe, setEditingRecipe] = useState(null);
 
   const totalMinutes = (parseInt(formPrepTime) || 0) + (parseInt(formCookTime) || 0);
 
@@ -60,7 +64,41 @@ function Recipes({
     setFormSteps([]);
     setFormStepInput('');
     setFormError('');
+    setUrlInput('');
+    setEditingRecipe(null);
     setShowAddForm(false);
+  };
+
+  const handleParseUrl = async () => {
+    if (!urlInput.trim()) return;
+    setUrlParsing(true);
+    setFormError('');
+
+    try {
+      const res = await fetch('/api/parse-recipe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: urlInput.trim() }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setFormError(data.error || 'Could not parse that URL.');
+        setUrlParsing(false);
+        return;
+      }
+
+      if (data.name) setFormName(data.name);
+      if (data.description) setFormDescription(data.description);
+      if (data.prep_minutes) setFormPrepTime(String(data.prep_minutes));
+      if (data.cook_minutes) setFormCookTime(String(data.cook_minutes));
+      if (Array.isArray(data.ingredients) && data.ingredients.length) setFormIngredients(data.ingredients);
+      if (Array.isArray(data.steps) && data.steps.length) setFormSteps(data.steps);
+    } catch {
+      setFormError('Something went wrong. Try again or add the recipe manually.');
+    }
+
+    setUrlParsing(false);
   };
 
   const handleSaveRecipe = async () => {
@@ -137,6 +175,7 @@ function Recipes({
   };
 
   const deleteRecipe = async (id) => {
+    setConfirmDeleteId(null);
     const recipe = recipes.find((r) => r.id === id);
     setRecipes((prev) => prev.filter((r) => r.id !== id));
 
@@ -145,6 +184,56 @@ function Recipes({
     if (recipe?.source_type === 'user') {
       await supabase.from('recipes').delete().eq('id', id);
     }
+  };
+
+  const openEditRecipe = (recipe) => {
+    setFormName(recipe.name || '');
+    setFormPrepTime(recipe.prep_minutes ? String(recipe.prep_minutes) : '');
+    setFormCookTime(recipe.cook_minutes ? String(recipe.cook_minutes) : '');
+    setFormDescription(recipe.description || '');
+    setFormIngredients(Array.isArray(recipe.ingredients) ? recipe.ingredients : []);
+    setFormSteps(Array.isArray(recipe.steps) ? recipe.steps : []);
+    setFormError('');
+    setUrlInput('');
+    setEditingRecipe(recipe);
+    setShowAddForm(true);
+  };
+
+  const handleUpdateRecipe = async () => {
+    if (!formName.trim()) { setFormError('Meal name is required.'); return; }
+    if (totalMinutes === 0) { setFormError('Please enter a prep and/or cook time.'); return; }
+
+    setFormSaving(true);
+    setFormError('');
+
+    const { error } = await supabase
+      .from('recipes')
+      .update({
+        name: formName.trim(),
+        description: formDescription.trim() || null,
+        prep_minutes: parseInt(formPrepTime) || 0,
+        cook_minutes: parseInt(formCookTime) || 0,
+        time_label: `${totalMinutes} min`,
+        ingredients: formIngredients,
+        steps: formSteps,
+      })
+      .eq('id', editingRecipe.id);
+
+    if (error) {
+      setFormError(`Could not update recipe: ${error.message}`);
+      setFormSaving(false);
+      return;
+    }
+
+    setRecipes((prev) => prev.map((r) =>
+      r.id === editingRecipe.id
+        ? { ...r, name: formName.trim(), description: formDescription.trim() || null, prep_minutes: parseInt(formPrepTime) || 0, cook_minutes: parseInt(formCookTime) || 0, time_label: `${totalMinutes} min`, ingredients: formIngredients, steps: formSteps }
+        : r
+    ));
+
+    setFormSaving(false);
+    setEditingRecipe(null);
+    resetForm();
   };
 
   const openPlanChooser = (recipe) => {
@@ -432,25 +521,61 @@ return (
                     fontWeight: '500'
                   }}
                 >
-                  use this this week
+                  use this week
                 </button>
 
-                <button
-                  onClick={() => deleteRecipe(recipe.id)}
-                  style={{
-                    padding: '10px 14px',
-                    fontSize: '12px',
-                    color: '#e24b4a',
-                    background: 'transparent',
-                    border: '1px solid #e24b4a',
-                    borderRadius: '12px',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    fontWeight: '500'
-                  }}
-                >
-                  remove
-                </button>
+                {recipe.source_type === 'user' && (
+                  <button
+                    onClick={() => openEditRecipe(recipe)}
+                    style={{
+                      padding: '10px 14px',
+                      fontSize: '12px',
+                      color: '#E46A2E',
+                      background: 'transparent',
+                      border: '1px solid #E46A2E',
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      fontWeight: '500'
+                    }}
+                  >
+                    edit
+                  </button>
+                )}
+
+                {confirmDeleteId === recipe.id ? (
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      onClick={() => deleteRecipe(recipe.id)}
+                      style={{ padding: '10px 12px', fontSize: '12px', color: 'white', background: '#e24b4a', border: 'none', borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: '600' }}
+                    >
+                      yes, remove
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(null)}
+                      style={{ padding: '10px 12px', fontSize: '12px', color: '#666', background: 'transparent', border: '1px solid #ddd', borderRadius: '12px', cursor: 'pointer', fontFamily: 'inherit' }}
+                    >
+                      cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDeleteId(recipe.id)}
+                    style={{
+                      padding: '10px 14px',
+                      fontSize: '12px',
+                      color: '#e24b4a',
+                      background: 'transparent',
+                      border: '1px solid #e24b4a',
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      fontWeight: '500'
+                    }}
+                  >
+                    remove
+                  </button>
+                )}
               </div>
 
               {isExpanded && (
@@ -619,8 +744,36 @@ return (
         >
           <div className="modal-handle" />
           <div style={{ fontSize: '20px', fontWeight: '700', color: '#1F2937', marginBottom: '18px' }}>
-            Add a recipe
+            {editingRecipe ? 'Edit recipe' : 'Add a recipe'}
           </div>
+
+          {/* URL import — hidden in edit mode */}
+          {!editingRecipe && <div style={{ marginBottom: '20px', padding: '14px', background: '#f6fcf9', borderRadius: '14px', border: '1px solid #d0ede3' }}>
+            <div style={{ fontSize: '12px', fontWeight: '600', color: '#1D9E75', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Import from a link
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="url"
+                placeholder="Paste a recipe URL..."
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleParseUrl())}
+                style={{ flex: 1, padding: '10px 12px', borderRadius: '10px', border: '1px solid #b8e8d4', fontFamily: 'inherit', fontSize: '14px', boxSizing: 'border-box', background: 'white' }}
+              />
+              <button
+                type="button"
+                onClick={handleParseUrl}
+                disabled={urlParsing || !urlInput.trim()}
+                style={{ padding: '10px 14px', borderRadius: '10px', border: 'none', background: urlParsing || !urlInput.trim() ? '#ccc' : '#1D9E75', color: 'white', fontWeight: '600', fontSize: '13px', cursor: urlParsing || !urlInput.trim() ? 'default' : 'pointer', whiteSpace: 'nowrap' }}
+              >
+                {urlParsing ? 'Parsing…' : 'Import'}
+              </button>
+            </div>
+            <div style={{ fontSize: '12px', color: '#888', marginTop: '6px' }}>
+              Works on most recipe sites. Review fields before saving.
+            </div>
+          </div>}
 
           {/* Name */}
           <div style={{ marginBottom: '14px' }}>
@@ -762,11 +915,11 @@ return (
           )}
 
           <button
-            onClick={handleSaveRecipe}
+            onClick={editingRecipe ? handleUpdateRecipe : handleSaveRecipe}
             disabled={formSaving}
             style={{ width: '100%', padding: '13px', borderRadius: '14px', border: 'none', background: '#1D9E75', color: 'white', fontSize: '15px', fontWeight: '700', cursor: formSaving ? 'default' : 'pointer', opacity: formSaving ? 0.7 : 1, marginBottom: '10px' }}
           >
-            {formSaving ? 'Saving…' : 'Save recipe'}
+            {formSaving ? 'Saving…' : editingRecipe ? 'Update recipe' : 'Save recipe'}
           </button>
           <button
             onClick={resetForm}

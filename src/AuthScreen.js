@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './lib/supabase';
+import { supabase } from './supabaseClient';
 
 function AuthScreen() {
   const [mode, setMode] = useState('login');

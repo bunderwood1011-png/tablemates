@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from './lib/supabase';
+import { supabase } from './supabaseClient';
 import Splash from './Splash';
 import OnboardingTour from './OnboardingTour';
 import OnboardingScreen from './OnboardingScreen';

@@ -29,6 +29,11 @@ function MainApp({ user }) {
   const [schedule, setScheduleRaw] = useState(DEFAULT_SCHEDULE);
   const [isBetaUser, setIsBetaUser] = useState(false);
   const [showBetaWelcome, setShowBetaWelcome] = useState(false);
+  const [showPlanningBanner, setShowPlanningBanner] = useState(() => {
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    const dismissed = localStorage.getItem(`tm_planning_banner_${today}`);
+    return !dismissed;
+  });
 
   const [shoppingList, setShoppingList] = useState(() => {
     try {
@@ -155,6 +160,7 @@ useEffect(() => {
       ...(data?.schedule || DEFAULT_SCHEDULE),
       dinner_start_time: data?.dinner_start_time || '',
       dinner_end_time: data?.dinner_end_time || '',
+      planning_day: data?.planning_day || '',
     });
   };
 
@@ -243,43 +249,16 @@ useEffect(() => {
 
     setMealsRaw(resolvedMeals);
 
-    const { data: upsertData, error: upsertError } = await supabase
-  .from('weekly_meals')
-  .upsert(
-    [{
-      user_id: user.id,
-      week_key: weekKey,
-      meals: resolvedMeals,
-      updated_at: new Date().toISOString()
-    }],
-    { onConflict: 'user_id, week_key' }
-  )
-  .select();
-
-if (upsertError) {
-  console.error('Error saving meals:', upsertError);
-  alert('Meal save failed: ' + upsertError.message);
-  return;
-}
-console.log('Meals saved:', upsertData);
-
-    const { data, error: insertError } = await supabase
+    const { error: upsertError } = await supabase
       .from('weekly_meals')
-      .insert([
-        {
-          user_id: user.id,
-          week_start: weekKey,
-          meals: resolvedMeals
-        }
-      ])
-      .select();
+      .upsert(
+        [{ user_id: user.id, week_key: weekKey, meals: resolvedMeals, updated_at: new Date().toISOString() }],
+        { onConflict: 'user_id, week_key' }
+      );
 
-    if (insertError) {
-      console.error('Error saving meals:', insertError);
-      return;
+    if (upsertError) {
+      console.error('Error saving meals:', upsertError);
     }
-
-    console.log('Meals saved successfully:', data);
   };
 
   const setSchedule = async (newScheduleOrUpdater) => {
@@ -294,6 +273,7 @@ console.log('Meals saved:', upsertData);
   const cleanedSchedule = { ...resolvedSchedule };
   delete cleanedSchedule.dinner_start_time;
   delete cleanedSchedule.dinner_end_time;
+  delete cleanedSchedule.planning_day;
 
   const { data, error } = await supabase
     .from('schedules')
@@ -304,6 +284,7 @@ console.log('Meals saved:', upsertData);
           schedule: cleanedSchedule,
           dinner_start_time: resolvedSchedule?.dinner_start_time || null,
           dinner_end_time: resolvedSchedule?.dinner_end_time || null,
+          planning_day: resolvedSchedule?.planning_day || null,
         }
       ],
       { onConflict: 'user_id' }
@@ -413,8 +394,37 @@ console.log('Meals saved:', upsertData);
 
   const searchResults = getSearchResults();
 
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+  const isPlanningDay = schedule?.planning_day && schedule.planning_day === today;
+
   return (
   <div className="app">
+
+    {isPlanningDay && showPlanningBanner && (
+      <div style={{
+        background: '#1D9E75',
+        color: 'white',
+        padding: '12px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px',
+        fontSize: '14px',
+        fontWeight: '600',
+      }}>
+        <span>🗓 It's your planning day! Ready to set up this week?</span>
+        <button
+          onClick={() => {
+            const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+            localStorage.setItem(`tm_planning_banner_${today}`, 'true');
+            setShowPlanningBanner(false);
+          }}
+          style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer', padding: 0, lineHeight: 1 }}
+        >
+          ×
+        </button>
+      </div>
+    )}
 
     <div className="header" style={{ marginBottom: '1.5rem' }}>
       <div

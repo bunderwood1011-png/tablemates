@@ -881,6 +881,60 @@ const hasDinnerWindow =
   )}
 </div>
 
+<div
+  style={{
+    marginBottom: '16px',
+    padding: '16px',
+    background: '#F0FAF6',
+    border: '1px solid #B7E4D2',
+    borderRadius: '16px',
+  }}
+>
+  <div
+    style={{
+      fontSize: '13px',
+      fontWeight: '600',
+      color: '#1D9E75',
+      marginBottom: '4px',
+    }}
+  >
+    Planning Day
+  </div>
+  <div
+    style={{
+      fontSize: '13px',
+      color: '#6B7280',
+      marginBottom: '12px',
+      lineHeight: 1.45,
+    }}
+  >
+    Pick the day you like to plan your meals for the week. We'll remind you when it arrives.
+  </div>
+  <select
+    value={schedule?.planning_day || ''}
+    onChange={(e) => updateDinnerTime('planning_day', e.target.value)}
+    style={{
+      width: '100%',
+      padding: '12px',
+      borderRadius: '12px',
+      border: '1px solid #A7D7C5',
+      fontSize: '14px',
+      background: '#fff',
+      color: '#111827',
+    }}
+  >
+    <option value="">No preference</option>
+    {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day) => (
+      <option key={day} value={day}>{day}</option>
+    ))}
+  </select>
+  {schedule?.planning_day && dinnerSaveStatus === 'saved' && (
+    <div style={{ marginTop: '8px', fontSize: '12px', color: '#1D9E75', fontWeight: '600' }}>
+      Saved
+    </div>
+  )}
+</div>
+
 <Schedule schedule={schedule} setSchedule={setSchedule} />
   </>
 )}
