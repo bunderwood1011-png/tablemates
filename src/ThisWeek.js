@@ -287,11 +287,11 @@ const slowMessages = [
     }
   };
 
-  const callAI = async (prompt) => {
+  const callAI = async (prompt, model) => {
     const response = await fetch('https://tablemates-psi.vercel.app/api/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify({ prompt, model })
     });
 
     const rawText = await response.text();
@@ -879,28 +879,28 @@ const skipMealForDay = (day) => {
       const familyInfo = buildFamilyInfo();
       const mealsToUse = mealsInput || meals;
       const updatedMeals = { ...mealsToUse };
+
+      const activeDays = DAYS.filter((d) => mealsToUse[d] && !mealsToUse[d].skipped);
+      if (activeDays.length === 0) return;
+
+      const mealsList = activeDays.map((d) => `${d}: ${mealsToUse[d].name}`).join('\n');
+
+      const prompt =
+        `Family:\n${familyInfo}\n\n` +
+        `Meals this week:\n${mealsList}\n\n` +
+        'For each meal and each person, suggest a modification only if needed — allergies, dislikes, spice level, texture, sauces on the side, or ingredient swaps. ' +
+        'Skip a person for a meal only if it genuinely works perfectly for them as written. ' +
+        'Return ONLY valid JSON with each day as a key: ' +
+        '{"Monday":[{"person":"Name","note":"short note"}],"Tuesday":[],...} ' +
+        'Only include days from the meals list above.';
+
+      const result = await callAI(prompt, 'claude-haiku-4-5-20251001');
+
       let totalModCount = 0;
-
-      for (const day of DAYS) {
-        if (!mealsToUse[day] || mealsToUse[day].skipped) continue;
-
-        const prompt =
-          `Meal: ${mealsToUse[day].name}\n` +
-          `Family:\n${familyInfo}\n\n` +
-          'For each person, suggest a modification if the meal contains something they dislike or are allergic to, or if a simple tweak would make it work better for them. ' +
-          'Think about spice levels, textures, sauces on the side, portion size differences, or ingredient swaps. ' +
-          'Only skip a person if the meal genuinely works perfectly for them as written. ' +
-          'Return ONLY valid JSON: {"modifications":[{"person":"Name","note":"short note"}]}';
-
-        const result = await callAI(prompt);
-        const mods = Array.isArray(result.modifications) ? result.modifications : [];
-
-        updatedMeals[day] = {
-          ...updatedMeals[day],
-          modifications: mods
-        };
-
-        totalModCount += mods.filter((mod) => mod.person).length;
+      for (const day of activeDays) {
+        const mods = Array.isArray(result[day]) ? result[day] : [];
+        updatedMeals[day] = { ...updatedMeals[day], modifications: mods };
+        totalModCount += mods.filter((m) => m.person).length;
       }
 
       await setMeals(updatedMeals);
