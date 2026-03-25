@@ -56,6 +56,7 @@ function AccountSupport({ onLogout }) {
   const [view, setView] = useState('menu');
   const [feedback, setFeedback] = useState('');
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [feedbackCategory, setFeedbackCategory] = useState('');
   const [openFaq, setOpenFaq] = useState(null);
 
   // Account state
@@ -520,6 +521,33 @@ function AccountSupport({ onLogout }) {
             <p style={{ fontSize: '14px', color: '#666', lineHeight: '1.6', marginBottom: '14px' }}>
               If something breaks or you have an idea, tell me here.
             </p>
+
+            <div style={{ fontSize: '13px', fontWeight: '600', color: '#444', marginBottom: '8px' }}>
+              What kind of feedback?
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+              {['Bug / Issue', 'Feature request', 'Need clarification', 'Positive / Good', 'Other'].map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setFeedbackCategory(feedbackCategory === cat ? '' : cat)}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '20px',
+                    border: '1px solid',
+                    borderColor: feedbackCategory === cat ? '#1D9E75' : '#ddd',
+                    background: feedbackCategory === cat ? '#E1F5EE' : '#fff',
+                    color: feedbackCategory === cat ? '#1D9E75' : '#555',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
             <textarea
               value={feedback}
               onChange={(e) => { setFeedback(e.target.value); if (feedbackSubmitted) setFeedbackSubmitted(false); }}
@@ -531,15 +559,15 @@ function AccountSupport({ onLogout }) {
                 if (!feedback.trim()) return;
                 const { data: { user } } = await supabase.auth.getUser();
                 if (!user) return;
-                const { error } = await supabase.from('feedback').insert([{ user_id: user.id, message: feedback.trim() }]);
-                if (!error) { setFeedbackSubmitted(true); setFeedback(''); }
+                const { error } = await supabase.from('feedback').insert([{ user_id: user.id, message: feedback.trim(), category: feedbackCategory || null }]);
+                if (!error) { setFeedbackSubmitted(true); setFeedback(''); setFeedbackCategory(''); }
               }}
               disabled={feedbackSubmitted}
-              style={{ marginTop: '14px', background: '#1D9E75', color: 'white', border: 'none', padding: '12px 16px', borderRadius: '12px', cursor: feedbackSubmitted ? 'default' : 'pointer', fontWeight: '600', opacity: feedbackSubmitted ? 0.7 : 1 }}
+              style={{ marginTop: '14px', background: '#1D9E75', color: 'white', border: 'none', padding: '12px 16px', borderRadius: '12px', cursor: feedbackSubmitted ? 'default' : 'pointer', fontWeight: '600', opacity: feedbackSubmitted ? 0.7 : 1, width: '100%' }}
             >
               {feedbackSubmitted ? 'Submitted ✓' : 'Submit Feedback'}
             </button>
-            {feedbackSubmitted && <div style={{ marginTop: '12px', fontSize: '13px', color: '#B42318', fontWeight: '600' }}>Thanks for the feedback!</div>}
+            {feedbackSubmitted && <div style={{ marginTop: '12px', fontSize: '13px', color: '#1D9E75', fontWeight: '600' }}>Thanks for the feedback!</div>}
           </div>
         </div>
       )}
