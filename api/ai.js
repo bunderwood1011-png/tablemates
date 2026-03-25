@@ -3,6 +3,16 @@ import { createClient } from '@supabase/supabase-js';
 
 dotenv.config({ path: '.env.local' });
 
+const logError = async (type, message, context) => {
+  try {
+    const supabase = createClient(
+      process.env.REACT_APP_SUPABASE_URL,
+      process.env.REACT_APP_SUPABASE_ANON_KEY
+    );
+    await supabase.from('error_logs').insert({ error_type: type, error_message: message, context });
+  } catch {}
+};
+
 const ALLOWED_ORIGINS = [
   'https://www.tablemates.io',
   'https://tablemates.io',
@@ -92,11 +102,11 @@ export default async function handler(req, res) {
     }
 
     if (!anthropicResponse.ok) {
+      const errMsg = data?.error?.message || 'Anthropic request failed';
+      const errType = anthropicResponse.status === 529 ? 'ai_overloaded' : 'ai_error';
+      await logError(errType, errMsg, `status:${anthropicResponse.status}`);
       console.error('Anthropic API error:', data);
-      return res.status(anthropicResponse.status).json({
-        error: data?.error?.message || 'Anthropic request failed',
-        details: data
-      });
+      return res.status(anthropicResponse.status).json({ error: errMsg });
     }
 
     const text =
@@ -118,9 +128,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ text });
   } catch (error) {
     console.error('AI route error:', error);
-
-    return res.status(500).json({
-      error: error.message || 'Server error'
-    });
+    await logError('ai_route_error', error.message || 'Unknown error', 'catch');
+    return res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 }

@@ -3,6 +3,16 @@ import { createClient } from '@supabase/supabase-js';
 
 dotenv.config({ path: '.env.local' });
 
+const logError = async (type, message, context) => {
+  try {
+    const supabase = createClient(
+      process.env.REACT_APP_SUPABASE_URL,
+      process.env.REACT_APP_SUPABASE_ANON_KEY
+    );
+    await supabase.from('error_logs').insert({ error_type: type, error_message: message, context });
+  } catch {}
+};
+
 const ALLOWED_ORIGINS = [
   'https://www.tablemates.io',
   'https://tablemates.io',
@@ -74,6 +84,7 @@ export default async function handler(req, res) {
     });
 
     if (!pageRes.ok) {
+      await logError('recipe_fetch_failed', `HTTP ${pageRes.status}`, url);
       return res.status(422).json({ error: `Could not fetch that page (${pageRes.status}). Try copying the recipe manually.` });
     }
 
@@ -88,6 +99,7 @@ export default async function handler(req, res) {
       .trim()
       .slice(0, 12000); // cap at ~12k chars to stay within token limits
   } catch (err) {
+    await logError('recipe_fetch_error', err.message || 'Fetch failed', url);
     return res.status(422).json({ error: 'Could not reach that URL. The site may be blocking requests.' });
   }
 
