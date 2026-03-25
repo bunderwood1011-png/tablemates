@@ -4,6 +4,7 @@ function ShoppingList({ shoppingList, setShoppingList }) {
   const [checked, setChecked] = useState({});
   const [newItem, setNewItem] = useState('');
   const [addingTo, setAddingTo] = useState(null);
+  const [showHave, setShowHave] = useState(false);
 
   const toggleCheck = (sectionIndex, itemIndex) => {
     const key = sectionIndex + '-' + itemIndex;
@@ -50,14 +51,16 @@ const getSectionIcon = (name) => {
 
   const shareList = () => {
     const text = shoppingList
-      .map(
-        (section) =>
+      .map((section, si) => {
+        const needItems = section.items.filter((_, ii) => !checked[si + '-' + ii]);
+        if (needItems.length === 0) return null;
+        return (
           section.name.toUpperCase() +
           '\n' +
-          section.items
-            .map((i) => '- ' + i.item + (i.amount ? ' (' + i.amount + ')' : ''))
-            .join('\n')
-      )
+          needItems.map((i) => '- ' + i.item + (i.amount ? ' (' + i.amount + ')' : '')).join('\n')
+        );
+      })
+      .filter(Boolean)
       .join('\n\n');
 
     if (navigator.share) {
@@ -82,13 +85,24 @@ const getSectionIcon = (name) => {
 
   const totalItems = shoppingList.reduce((acc, s) => acc + s.items.length, 0);
   const checkedCount = Object.values(checked).filter(Boolean).length;
+  const needCount = totalItems - checkedCount;
+
+  // Collect all checked items across sections for the "have" list
+  const haveItems = [];
+  shoppingList.forEach((section, si) => {
+    section.items.forEach((item, ii) => {
+      if (checked[si + '-' + ii]) {
+        haveItems.push({ ...item, sectionName: section.name });
+      }
+    });
+  });
 
   return (
     <div>
       <div className="shop-top">
         <div className="shop-progress">
           <div className="shop-progress-text">
-            {checkedCount} of {totalItems} items
+            {needCount} item{needCount !== 1 ? 's' : ''} left
           </div>
           <div className="shop-progress-bar">
             <div
@@ -135,74 +149,101 @@ const getSectionIcon = (name) => {
         </div>
       </div>
 
-      {shoppingList.map((section, si) => (
-        <div key={si} className="shop-section">
-          <div
-  className="shop-section-label"
-  style={{
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px'
-  }}
->
-  <span style={{ color: '#E46A2E', fontSize: '18px' }}>
-    {getSectionIcon(section.name)}
-  </span>
-  <span>{section.name}</span>
-</div>
-          {section.items.map((item, ii) => {
-            const key = si + '-' + ii;
-            const done = checked[key];
+      {shoppingList.map((section, si) => {
+        const needItems = section.items.filter((_, ii) => !checked[si + '-' + ii]);
+        if (needItems.length === 0 && addingTo !== si) return null;
 
-            return (
-              <div key={ii} className="shop-item" onClick={() => toggleCheck(si, ii)}>
-                <div className={'shop-checkbox' + (done ? ' checked' : '')}>
-                  {done && (
-                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                      <path
-                        d="M1 4l3 3 5-6"
-                        stroke="white"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  )}
-                </div>
-
-                <div className={'shop-item-name' + (done ? ' shop-item-done' : '')}>
-                  {item.item}
-                </div>
-
-                {item.amount ? <div className="shop-item-amount">{item.amount}</div> : null}
-              </div>
-            );
-          })}
-
-          {addingTo === si ? (
-            <div className="input-row" style={{ marginTop: '8px' }}>
-              <input
-                className="text-input small"
-                placeholder="Add an item..."
-                value={newItem}
-                onChange={(e) => setNewItem(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addItem(si)}
-                autoFocus
-              />
-              <button className="add-tag-btn" onClick={() => addItem(si)}>
-                +
-              </button>
+        return (
+          <div key={si} className="shop-section">
+            <div className="shop-section-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ color: '#E46A2E', fontSize: '18px' }}>{getSectionIcon(section.name)}</span>
+              <span>{section.name}</span>
             </div>
-          ) : (
-            <button
-              className="add-event-btn"
-              style={{ marginTop: '8px' }}
-              onClick={() => setAddingTo(si)}
+
+            {section.items.map((item, ii) => {
+              const key = si + '-' + ii;
+              if (checked[key]) return null;
+
+              return (
+                <div key={ii} className="shop-item" onClick={() => toggleCheck(si, ii)}>
+                  <div className="shop-checkbox" />
+                  <div className="shop-item-name">{item.item}</div>
+                  {item.amount ? <div className="shop-item-amount">{item.amount}</div> : null}
+                </div>
+              );
+            })}
+
+            {addingTo === si ? (
+              <div className="input-row" style={{ marginTop: '8px' }}>
+                <input
+                  className="text-input small"
+                  placeholder="Add an item..."
+                  value={newItem}
+                  onChange={(e) => setNewItem(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addItem(si)}
+                  autoFocus
+                />
+                <button className="add-tag-btn" onClick={() => addItem(si)}>+</button>
+              </div>
+            ) : (
+              <button className="add-event-btn" style={{ marginTop: '8px' }} onClick={() => setAddingTo(si)}>
+                + add item
+              </button>
+            )}
+          </div>
+        );
+      })}
+
+      {haveItems.length > 0 && (
+        <div className="shop-section" style={{ opacity: 0.7 }}>
+          <button
+            type="button"
+            onClick={() => setShowHave((p) => !p)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: 0, width: '100%', textAlign: 'left',
+            }}
+          >
+            <div className="shop-section-label" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 0 }}>
+              <span style={{ fontSize: '18px' }}>✓</span>
+              <span>already have ({haveItems.length})</span>
+            </div>
+            <span style={{ marginLeft: 'auto', fontSize: '13px', color: '#999' }}>
+              {showHave ? 'hide' : 'show'}
+            </span>
+          </button>
+
+          {showHave && haveItems.map((item, i) => (
+            <div
+              key={i}
+              className="shop-item"
+              style={{ opacity: 0.5 }}
+              onClick={() => {
+                // find original key and uncheck
+                let found = null;
+                shoppingList.forEach((section, si) => {
+                  section.items.forEach((it, ii) => {
+                    const key = si + '-' + ii;
+                    if (checked[key] && it.item === item.item && it.meal === item.meal) {
+                      found = key;
+                    }
+                  });
+                });
+                if (found) setChecked((prev) => ({ ...prev, [found]: false }));
+              }}
             >
-              + add item
-            </button>
-          )}
+              <div className="shop-checkbox checked">
+                <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                  <path d="M1 4l3 3 5-6" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </div>
+              <div className="shop-item-name shop-item-done">{item.item}</div>
+              {item.amount ? <div className="shop-item-amount">{item.amount}</div> : null}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
