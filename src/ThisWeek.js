@@ -892,8 +892,11 @@ const skipMealForDay = (day) => {
       const prompt =
         `Family:\n${familyInfo}\n\n` +
         `Meals this week:\n${mealsList}\n\n` +
-        'For each meal and each person, suggest a modification only if needed — allergies, dislikes, spice level, texture, sauces on the side, or ingredient swaps. ' +
-        'Skip a person for a meal only if it genuinely works perfectly for them as written. ' +
+        'For each meal and each person, suggest a small modification to the SAME meal only if genuinely needed due to allergies, dislikes, or dietary needs. ' +
+        'Modifications must be minor tweaks to the actual dish — like "serve sauce on the side", "skip the onions", "add hot sauce for adults", or "use GF pasta". ' +
+        'NEVER suggest a completely different meal or protein as a modification. ' +
+        'NEVER suggest a modification unless there is a clear reason from the family profile. ' +
+        'If the meal works fine for a person, leave them out entirely. ' +
         'Return ONLY valid JSON with each day as a key: ' +
         '{"Monday":[{"person":"Name","note":"short note"}],"Tuesday":[],...} ' +
         'Only include days from the meals list above.';
