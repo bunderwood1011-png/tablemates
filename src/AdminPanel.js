@@ -17,20 +17,31 @@ function AdminPanel() {
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState(null);
   const [view, setView] = useState('accounts');
+  const [inviteCodes, setInviteCodes] = useState({}); // waitlistId -> code
+  const [generatingInvite, setGeneratingInvite] = useState(null);
 
   const load = async () => {
     setLoading(true);
-    const [{ data: accts }, { data: wl }, { data: fb }, { data: errs }] = await Promise.all([
+    const [acctRes, wlRes, fbRes, errRes] = await Promise.all([
       supabase.rpc('get_all_accounts_admin'),
       supabase.rpc('get_waitlist_admin'),
       supabase.rpc('get_feedback_admin'),
       supabase.rpc('get_error_logs_admin'),
     ]);
-    setAccounts(accts || []);
-    setWaitlist(wl || []);
-    setFeedback(fb || []);
-    setErrors(errs || []);
+    setAccounts(acctRes.data || []);
+    setWaitlist(wlRes.data || []);
+    setFeedback(fbRes.data || []);
+    setErrors(errRes.data || []);
     setLoading(false);
+  };
+
+  const generateInvite = async (waitlistId) => {
+    setGeneratingInvite(waitlistId);
+    const { data: code } = await supabase.rpc('generate_invite_code_admin');
+    if (code) {
+      setInviteCodes((prev) => ({ ...prev, [waitlistId]: code }));
+    }
+    setGeneratingInvite(null);
   };
 
   useEffect(() => { load(); }, []);
@@ -162,8 +173,38 @@ function AdminPanel() {
           <div style={{ textAlign: 'center', color: '#999', fontSize: '14px', padding: '40px 0' }}>No waitlist entries yet.</div>
         ) : waitlist.map((entry) => (
           <div key={entry.id} style={cardStyle}>
-            <div style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a' }}>{entry.email}</div>
-            <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>{formatDate(entry.created_at)}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a' }}>{entry.email}</div>
+                <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>{formatDate(entry.created_at)}</div>
+                {inviteCodes[entry.id] && (
+                  <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: '13px', fontWeight: '700', color: '#1D9E75', background: '#E1F5EE', padding: '4px 10px', borderRadius: '8px', letterSpacing: '0.05em' }}>
+                      {inviteCodes[entry.id]}
+                    </span>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(inviteCodes[entry.id])}
+                      style={{ fontSize: '11px', color: '#888', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    >
+                      copy
+                    </button>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => generateInvite(entry.id)}
+                disabled={generatingInvite === entry.id}
+                style={{
+                  flexShrink: 0, padding: '7px 14px', borderRadius: '20px', border: '1.5px solid #ddd',
+                  background: inviteCodes[entry.id] ? '#E1F5EE' : '#fafafa',
+                  color: inviteCodes[entry.id] ? '#1D9E75' : '#888',
+                  fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+                  opacity: generatingInvite === entry.id ? 0.5 : 1,
+                }}
+              >
+                {generatingInvite === entry.id ? '...' : inviteCodes[entry.id] ? 'Regenerate' : 'Generate invite'}
+              </button>
+            </div>
           </div>
         ))
       ) : view === 'feedback' ? (
