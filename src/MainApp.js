@@ -6,6 +6,7 @@ import ThisWeek from './ThisWeek';
 import ShoppingList from './ShoppingList';
 import PastWeeks from './PastWeeks';
 import Recipes from './Recipes';
+import AdminPanel from './AdminPanel';
 import { supabase } from './supabaseClient';
 
 const DEFAULT_SCHEDULE = {
@@ -28,6 +29,7 @@ function MainApp({ user }) {
   const [meals, setMealsRaw] = useState({});
   const [schedule, setScheduleRaw] = useState(DEFAULT_SCHEDULE);
   const [isBetaUser, setIsBetaUser] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [showBetaWelcome, setShowBetaWelcome] = useState(false);
   const [showPlanningBanner, setShowPlanningBanner] = useState(() => {
     const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
@@ -102,7 +104,7 @@ useEffect(() => {
   const loadAccount = async () => {
     const { data, error } = await supabase
       .from('accounts')
-      .select('beta_user')
+      .select('beta_user, is_admin')
       .eq('user_id', user.id)
       .single();
 
@@ -112,6 +114,7 @@ useEffect(() => {
     }
 
     setIsBetaUser(!!data?.beta_user);
+    setIsAdmin(!!data?.is_admin);
   };
 
   if (user?.id) {
@@ -642,6 +645,14 @@ useEffect(() => {
   >
     recipes
   </button>
+  {isAdmin && (
+    <button
+      className={'nav-btn' + (activeTab === 'admin' ? ' active' : '')}
+      onClick={() => setActiveTab('admin')}
+    >
+      admin
+    </button>
+  )}
 </div>
 
 <div className="content">
@@ -656,6 +667,10 @@ useEffect(() => {
 
   {activeTab === 'account' && (
     <AccountSupport onLogout={handleLogout} />
+  )}
+
+  {activeTab === 'admin' && isAdmin && (
+    <AdminPanel />
   )}
 
   {activeTab === 'week' && (
