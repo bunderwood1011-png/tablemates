@@ -158,8 +158,8 @@ useEffect(() => {
 
     setScheduleRaw({
       ...(data?.schedule || DEFAULT_SCHEDULE),
-      dinner_start_time: data?.dinner_start_time || '',
-      dinner_end_time: data?.dinner_end_time || '',
+      dinner_start_time: (data?.dinner_start_time || '').substring(0, 5),
+      dinner_end_time: (data?.dinner_end_time || '').substring(0, 5),
       planning_day: data?.planning_day || '',
     });
   };
