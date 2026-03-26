@@ -20,14 +20,19 @@ function AdminPanel() {
   const [inviteCodes, setInviteCodes] = useState({}); // waitlistId -> code
   const [generatingInvite, setGeneratingInvite] = useState(null);
 
+  const [loadError, setLoadError] = useState('');
+
   const load = async () => {
     setLoading(true);
+    setLoadError('');
     const [acctRes, wlRes, fbRes, errRes] = await Promise.all([
       supabase.rpc('get_all_accounts_admin'),
       supabase.rpc('get_waitlist_admin'),
       supabase.rpc('get_feedback_admin'),
       supabase.rpc('get_error_logs_admin'),
     ]);
+    const firstError = acctRes.error || wlRes.error || fbRes.error || errRes.error;
+    if (firstError) setLoadError(firstError.message);
     setAccounts(acctRes.data || []);
     setWaitlist(wlRes.data || []);
     setFeedback(fbRes.data || []);
@@ -132,6 +137,12 @@ function AdminPanel() {
           </button>
         ))}
       </div>
+
+      {loadError && (
+        <div style={{ background: '#FEE2E2', color: '#B91C1C', borderRadius: '12px', padding: '12px 14px', fontSize: '13px', marginBottom: '12px' }}>
+          Error: {loadError}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ textAlign: 'center', color: '#999', fontSize: '14px', padding: '40px 0' }}>Loading...</div>
