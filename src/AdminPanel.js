@@ -9,6 +9,12 @@ const CATEGORY_COLORS = {
   'Other': { bg: '#F3F4F6', color: '#374151' },
 };
 
+const maskEmail = (email) => {
+  if (!email) return 'Unknown user';
+  const [local, domain] = email.split('@');
+  return `${local[0]}***@${domain}`;
+};
+
 function AdminPanel() {
   const [accounts, setAccounts] = useState([]);
   const [waitlist, setWaitlist] = useState([]);
@@ -17,8 +23,13 @@ function AdminPanel() {
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState(null);
   const [view, setView] = useState('accounts');
-  const [inviteCodes, setInviteCodes] = useState({}); // waitlistId -> code
+  const [inviteCodes, setInviteCodes] = useState({});
   const [generatingInvite, setGeneratingInvite] = useState(null);
+  const [respondingTo, setRespondingTo] = useState(null); // feedback id
+  const [announceTitle, setAnnounceTitle] = useState('');
+  const [announceBody, setAnnounceBody] = useState('');
+  const [announcing, setAnnouncing] = useState(false);
+  const [announced, setAnnounced] = useState({}); // feedbackId -> true
 
   const [loadError, setLoadError] = useState('');
 
@@ -58,6 +69,21 @@ function AdminPanel() {
       prev.map((a) => a.user_id === userId ? { ...a, beta_user: !currentValue } : a)
     );
     setTogglingId(null);
+  };
+
+  const postAnnouncement = async (feedbackId) => {
+    if (!announceTitle.trim() || !announceBody.trim()) return;
+    setAnnouncing(true);
+    await supabase.rpc('post_announcement_admin', {
+      p_title: announceTitle.trim(),
+      p_body: announceBody.trim(),
+      p_feedback_id: feedbackId,
+    });
+    setAnnounced((prev) => ({ ...prev, [feedbackId]: true }));
+    setRespondingTo(null);
+    setAnnounceTitle('');
+    setAnnounceBody('');
+    setAnnouncing(false);
   };
 
   const betaCount = accounts.filter((a) => a.beta_user).length;
@@ -223,10 +249,12 @@ function AdminPanel() {
           <div style={{ textAlign: 'center', color: '#999', fontSize: '14px', padding: '40px 0' }}>No feedback yet.</div>
         ) : feedback.map((fb) => {
           const catStyle = CATEGORY_COLORS[fb.category] || CATEGORY_COLORS['Other'];
+          const isResponding = respondingTo === fb.id;
+          const isDone = announced[fb.id];
           return (
             <div key={fb.id} style={cardStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                <div style={{ fontSize: '12px', fontWeight: '600', color: '#888' }}>{fb.email || 'Unknown user'}</div>
+                <div style={{ fontSize: '12px', fontWeight: '600', color: '#888' }}>{maskEmail(fb.email)}</div>
                 <div style={{ fontSize: '11px', color: '#aaa' }}>{formatDateTime(fb.created_at)}</div>
               </div>
               {fb.category && (
@@ -234,7 +262,38 @@ function AdminPanel() {
                   {fb.category}
                 </div>
               )}
-              <div style={{ fontSize: '14px', color: '#333', lineHeight: '1.6' }}>{fb.message}</div>
+              <div style={{ fontSize: '14px', color: '#333', lineHeight: '1.6', marginBottom: '10px' }}>{fb.message}</div>
+
+              {isDone ? (
+                <div style={{ fontSize: '12px', color: '#1D9E75', fontWeight: '600' }}>✓ Announcement posted</div>
+              ) : isResponding ? (
+                <div style={{ borderTop: '1px solid #f0f0f0', paddingTop: '10px' }}>
+                  <input
+                    placeholder="Title (e.g. 'Shopping list improvement')"
+                    value={announceTitle}
+                    onChange={(e) => setAnnounceTitle(e.target.value)}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '10px', border: '1px solid #ddd', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: '8px' }}
+                  />
+                  <textarea
+                    placeholder="What did you ship? (visible to all users in What's New)"
+                    value={announceBody}
+                    onChange={(e) => setAnnounceBody(e.target.value)}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '10px', border: '1px solid #ddd', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box', minHeight: '80px', resize: 'vertical', marginBottom: '8px' }}
+                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => postAnnouncement(fb.id)} disabled={announcing} style={{ flex: 1, padding: '9px', borderRadius: '10px', border: 'none', background: '#1D9E75', color: 'white', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
+                      {announcing ? 'Posting...' : 'Post announcement'}
+                    </button>
+                    <button onClick={() => { setRespondingTo(null); setAnnounceTitle(''); setAnnounceBody(''); }} style={{ padding: '9px 14px', borderRadius: '10px', border: '1px solid #ddd', background: 'white', fontSize: '13px', cursor: 'pointer', color: '#666' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setRespondingTo(fb.id)} style={{ fontSize: '12px', color: '#E46A2E', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  + Post announcement about this
+                </button>
+              )}
             </div>
           );
         })

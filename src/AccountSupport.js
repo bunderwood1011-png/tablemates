@@ -55,10 +55,11 @@ const TERMS_OF_SERVICE = [
   { type: 'body', text: 'For questions about these terms, please use the Feedback form in the app.' },
 ];
 
-function AccountSupport({ onLogout }) {
+function AccountSupport({ onLogout, onAnnouncementSeen }) {
   const [view, setView] = useState('menu');
   const [feedback, setFeedback] = useState('');
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [announcements, setAnnouncements] = useState([]);
   const [feedbackCategory, setFeedbackCategory] = useState('');
   const [openFaq, setOpenFaq] = useState(null);
 
@@ -107,6 +108,23 @@ function AccountSupport({ onLogout }) {
     };
     loadReferral();
   }, []);
+
+  useEffect(() => {
+    const loadAnnouncements = async () => {
+      const { data } = await supabase
+        .from('announcements')
+        .select('id, title, body, created_at')
+        .order('created_at', { ascending: false });
+      if (data) {
+        setAnnouncements(data);
+        // Notify parent if there are unseen announcements
+        const lastSeen = localStorage.getItem('tm_last_seen_announcement');
+        const hasNew = data.length > 0 && (!lastSeen || data[0].created_at > lastSeen);
+        if (onAnnouncementSeen) onAnnouncementSeen(hasNew);
+      }
+    };
+    loadAnnouncements();
+  }, [onAnnouncementSeen]);
 
   const referralLink = referralCode ? `https://www.tablemates.io?ref=${referralCode}` : '';
 
@@ -352,6 +370,22 @@ function AccountSupport({ onLogout }) {
           </div>
 
           <div style={sectionLabelStyle}>support</div>
+          <div onClick={() => {
+            setView('whats-new');
+            if (announcements.length > 0) {
+              localStorage.setItem('tm_last_seen_announcement', announcements[0].created_at);
+              if (onAnnouncementSeen) onAnnouncementSeen(false);
+            }
+          }} style={cardStyle}>
+            <div>
+              <div style={{ ...cardTitleStyle, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                What's New
+              </div>
+              <div style={cardSubtitleStyle}>Updates and improvements from your feedback</div>
+            </div>
+            <ChevronRight />
+          </div>
+
           <div onClick={() => setView('feedback')} style={cardStyle}>
             <div>
               <div style={cardTitleStyle}>Feedback</div>
@@ -572,6 +606,32 @@ function AccountSupport({ onLogout }) {
             </button>
             {feedbackSubmitted && <div style={{ marginTop: '12px', fontSize: '13px', color: '#1D9E75', fontWeight: '600' }}>Thanks for the feedback!</div>}
           </div>
+        </div>
+      )}
+
+      {/* WHAT'S NEW */}
+      {view === 'whats-new' && (
+        <div>
+          <button onClick={() => setView('menu')} style={backButtonStyle}>‹ Back</button>
+          <div style={{ fontSize: '20px', fontWeight: '700', marginBottom: '4px' }}>What's New</div>
+          <div style={{ fontSize: '14px', color: '#666', marginBottom: '20px', lineHeight: '1.5' }}>
+            Updates and improvements based on your feedback.
+          </div>
+          {announcements.length === 0 ? (
+            <div style={{ textAlign: 'center', color: '#999', fontSize: '14px', padding: '40px 0' }}>
+              Nothing yet — check back soon!
+            </div>
+          ) : announcements.map((a) => (
+            <div key={a.id} style={{ background: 'white', border: '1px solid #e8e8e8', borderRadius: '16px', padding: '18px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                <div style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a' }}>{a.title}</div>
+                <div style={{ fontSize: '11px', color: '#aaa', flexShrink: 0, marginLeft: '12px' }}>
+                  {new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </div>
+              </div>
+              <div style={{ fontSize: '14px', color: '#555', lineHeight: '1.6' }}>{a.body}</div>
+            </div>
+          ))}
         </div>
       )}
 
