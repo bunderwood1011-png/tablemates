@@ -85,7 +85,7 @@ function AdminPanel() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session && feedbackEmail) {
-        await fetch('/api/notify-feedback', {
+        const notifyRes = await fetch('/api/notify-feedback', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -97,8 +97,14 @@ function AdminPanel() {
             body: announceBody.trim(),
           }),
         });
+        if (!notifyRes.ok) {
+          const err = await notifyRes.json().catch(() => ({}));
+          setLoadError(`Email failed: ${err.error || notifyRes.status}`);
+        }
       }
-    } catch {}
+    } catch (e) {
+      setLoadError(`Email error: ${e.message}`);
+    }
 
     setAnnounced((prev) => ({ ...prev, [feedbackId]: true }));
     setRespondingTo(null);
