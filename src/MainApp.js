@@ -30,6 +30,7 @@ function MainApp({ user }) {
   const [schedule, setScheduleRaw] = useState(DEFAULT_SCHEDULE);
   const [isBetaUser, setIsBetaUser] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [hasNewAnnouncements, setHasNewAnnouncements] = useState(false);
   const [showBetaWelcome, setShowBetaWelcome] = useState(false);
   const [showPlanningBanner, setShowPlanningBanner] = useState(() => {
     const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
@@ -507,36 +508,51 @@ useEffect(() => {
             flexShrink: 0
           }}
         >
-          <button
-            onClick={() => setActiveTab('account')}
-            style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '50%',
-              background: activeTab === 'account' ? '#1D9E75' : '#e8e8e8',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer'
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <circle
-                cx="9"
-                cy="6"
-                r="3"
-                stroke={activeTab === 'account' ? 'white' : '#888'}
-                strokeWidth="1.5"
-              />
-              <path
-                d="M3 15c0-3.3 2.7-6 6-6s6 2.7 6 6"
-                stroke={activeTab === 'account' ? 'white' : '#888'}
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
+          <div style={{ position: 'relative', display: 'inline-flex' }}>
+            <button
+              onClick={() => setActiveTab('account')}
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                background: activeTab === 'account' ? '#1D9E75' : '#e8e8e8',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <circle
+                  cx="9"
+                  cy="6"
+                  r="3"
+                  stroke={activeTab === 'account' ? 'white' : '#888'}
+                  strokeWidth="1.5"
+                />
+                <path
+                  d="M3 15c0-3.3 2.7-6 6-6s6 2.7 6 6"
+                  stroke={activeTab === 'account' ? 'white' : '#888'}
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+            {hasNewAnnouncements && (
+              <span style={{
+                position: 'absolute',
+                top: '0px',
+                right: '0px',
+                width: '9px',
+                height: '9px',
+                borderRadius: '50%',
+                background: '#FF6B35',
+                border: '2px solid white',
+                pointerEvents: 'none'
+              }} />
+            )}
+          </div>
         </div>
       </div>
 
@@ -666,7 +682,7 @@ useEffect(() => {
   )}
 
   {activeTab === 'account' && (
-    <AccountSupport onLogout={handleLogout} />
+    <AccountSupport onLogout={handleLogout} onAnnouncementSeen={() => setHasNewAnnouncements(false)} />
   )}
 
   {activeTab === 'admin' && isAdmin && (
