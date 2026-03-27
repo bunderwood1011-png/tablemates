@@ -326,47 +326,14 @@ function AccountSupport({ onLogout, onAnnouncementSeen }) {
           </div>
 
           <div style={sectionLabelStyle}>refer a friend</div>
-          <div style={{ ...sectionCardStyle, cursor: 'default' }}>
-            <div style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a', marginBottom: '6px' }}>
-              Invite someone to Tablemates
+          <div onClick={() => setView('refer')} style={cardStyle}>
+            <div>
+              <div style={cardTitleStyle}>Invite someone to Tablemates</div>
+              <div style={cardSubtitleStyle}>
+                Share your link{referralCount > 0 ? ` · ${referralCount} ${referralCount === 1 ? 'person' : 'people'} joined` : ''}
+              </div>
             </div>
-            <div style={{ fontSize: '13px', color: '#666', lineHeight: '1.6', marginBottom: '14px' }}>
-              Share your link — anyone you invite will be first in line when we open up.
-              {referralCount > 0 && (
-                <span style={{ display: 'block', marginTop: '6px', color: '#1D9E75', fontWeight: '600' }}>
-                  {referralCount} {referralCount === 1 ? 'person' : 'people'} joined with your link
-                </span>
-              )}
-            </div>
-            <div style={{
-              background: '#f7f7f5',
-              borderRadius: '12px',
-              padding: '11px 13px',
-              fontSize: '13px',
-              color: '#444',
-              wordBreak: 'break-all',
-              marginBottom: '10px',
-              fontFamily: 'monospace',
-            }}>
-              {referralLink || '…'}
-            </div>
-            <button
-              onClick={handleCopyReferral}
-              style={{
-                width: '100%',
-                padding: '11px 16px',
-                borderRadius: '12px',
-                border: 'none',
-                background: referralCopied ? '#E1F5EE' : '#1D9E75',
-                color: referralCopied ? '#1D9E75' : 'white',
-                fontWeight: '600',
-                fontSize: '14px',
-                cursor: 'pointer',
-                transition: 'background 0.2s',
-              }}
-            >
-              {referralCopied ? 'Copied!' : 'Copy invite link'}
-            </button>
+            <ChevronRight />
           </div>
 
           <div style={sectionLabelStyle}>support</div>
@@ -403,19 +370,12 @@ function AccountSupport({ onLogout, onAnnouncementSeen }) {
           </div>
 
           <div style={sectionLabelStyle}>about</div>
-          <div style={{ ...sectionCardStyle, cursor: 'default' }}>
-            <div style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a', marginBottom: '10px' }}>
-              About Tablemates
+          <div onClick={() => setView('about')} style={cardStyle}>
+            <div>
+              <div style={cardTitleStyle}>About Tablemates</div>
+              <div style={cardSubtitleStyle}>Our story</div>
             </div>
-            <div style={{ fontSize: '14px', color: '#555', lineHeight: '1.7', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <p style={{ margin: 0 }}>Tablemates was built by a mom of six who was laid off from her job — because of AI.</p>
-              <p style={{ margin: 0 }}>Instead of stepping back, she decided to use it.</p>
-              <p style={{ margin: 0 }}>Between six kids, different tastes, allergies, and sports schedules that change every week, dinner was a daily source of stress. No app quite solved it. So she built one.</p>
-              <p style={{ margin: 0 }}>Tablemates is the meal planner she always wished existed — one that actually knows your family, respects your time, and handles the part of the day that shouldn't be this hard.</p>
-            </div>
-            <div style={{ fontSize: '13px', color: '#1D9E75', fontStyle: 'italic', marginTop: '14px', fontWeight: '600' }}>
-              dinner, handled. 🍽️
-            </div>
+            <ChevronRight />
           </div>
 
           <div style={sectionLabelStyle}>legal</div>
@@ -610,6 +570,46 @@ function AccountSupport({ onLogout, onAnnouncementSeen }) {
       )}
 
       {/* WHAT'S NEW */}
+      {view === 'refer' && (
+        <div>
+          <button onClick={() => setView('menu')} style={backButtonStyle}>‹ Back</button>
+          <div style={{ fontSize: '20px', fontWeight: '700', marginBottom: '4px' }}>Invite someone</div>
+          <div style={{ fontSize: '14px', color: '#666', marginBottom: '20px', lineHeight: '1.5' }}>
+            Share your link — anyone you invite will be first in line when we open up.
+            {referralCount > 0 && (
+              <span style={{ display: 'block', marginTop: '6px', color: '#1D9E75', fontWeight: '600' }}>
+                {referralCount} {referralCount === 1 ? 'person' : 'people'} joined with your link
+              </span>
+            )}
+          </div>
+          <div style={{ background: '#f7f7f5', borderRadius: '12px', padding: '11px 13px', fontSize: '13px', color: '#444', wordBreak: 'break-all', marginBottom: '10px', fontFamily: 'monospace' }}>
+            {referralLink || '…'}
+          </div>
+          <button
+            onClick={handleCopyReferral}
+            style={{ width: '100%', padding: '11px 16px', borderRadius: '12px', border: 'none', background: referralCopied ? '#E1F5EE' : '#1D9E75', color: referralCopied ? '#1D9E75' : 'white', fontWeight: '600', fontSize: '14px', cursor: 'pointer', transition: 'background 0.2s' }}
+          >
+            {referralCopied ? 'Copied!' : 'Copy invite link'}
+          </button>
+        </div>
+      )}
+
+      {view === 'about' && (
+        <div>
+          <button onClick={() => setView('menu')} style={backButtonStyle}>‹ Back</button>
+          <div style={{ fontSize: '20px', fontWeight: '700', marginBottom: '20px' }}>About Tablemates</div>
+          <div style={{ fontSize: '14px', color: '#555', lineHeight: '1.7', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <p style={{ margin: 0 }}>Tablemates was built by a mom of six who was laid off from her job — because of AI.</p>
+            <p style={{ margin: 0 }}>Instead of stepping back, she decided to use it.</p>
+            <p style={{ margin: 0 }}>Between six kids, different tastes, allergies, and sports schedules that change every week, dinner was a daily source of stress. No app quite solved it. So she built one.</p>
+            <p style={{ margin: 0 }}>Tablemates is the meal planner she always wished existed — one that actually knows your family, respects your time, and handles the part of the day that shouldn't be this hard.</p>
+          </div>
+          <div style={{ fontSize: '13px', color: '#1D9E75', fontStyle: 'italic', marginTop: '20px', fontWeight: '600' }}>
+            dinner, handled. 🍽️
+          </div>
+        </div>
+      )}
+
       {view === 'whats-new' && (
         <div>
           <button onClick={() => setView('menu')} style={backButtonStyle}>‹ Back</button>
