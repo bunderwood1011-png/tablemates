@@ -71,14 +71,35 @@ function AdminPanel() {
     setTogglingId(null);
   };
 
-  const postAnnouncement = async (feedbackId) => {
+  const postAnnouncement = async (feedbackId, feedbackEmail) => {
     if (!announceTitle.trim() || !announceBody.trim()) return;
     setAnnouncing(true);
+
     await supabase.rpc('post_announcement_admin', {
       p_title: announceTitle.trim(),
       p_body: announceBody.trim(),
       p_feedback_id: feedbackId,
     });
+
+    // Email the person who submitted the feedback
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session && feedbackEmail) {
+        await fetch('/api/notify-feedback', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            toEmail: feedbackEmail,
+            title: announceTitle.trim(),
+            body: announceBody.trim(),
+          }),
+        });
+      }
+    } catch {}
+
     setAnnounced((prev) => ({ ...prev, [feedbackId]: true }));
     setRespondingTo(null);
     setAnnounceTitle('');
@@ -281,7 +302,7 @@ function AdminPanel() {
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '10px', border: '1px solid #ddd', fontSize: '13px', fontFamily: 'inherit', boxSizing: 'border-box', minHeight: '80px', resize: 'vertical', marginBottom: '8px' }}
                   />
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={() => postAnnouncement(fb.id)} disabled={announcing} style={{ flex: 1, padding: '9px', borderRadius: '10px', border: 'none', background: '#1D9E75', color: 'white', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
+                    <button onClick={() => postAnnouncement(fb.id, fb.email)} disabled={announcing} style={{ flex: 1, padding: '9px', borderRadius: '10px', border: 'none', background: '#1D9E75', color: 'white', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
                       {announcing ? 'Posting...' : 'Post announcement'}
                     </button>
                     <button onClick={() => { setRespondingTo(null); setAnnounceTitle(''); setAnnounceBody(''); }} style={{ padding: '9px 14px', borderRadius: '10px', border: '1px solid #ddd', background: 'white', fontSize: '13px', cursor: 'pointer', color: '#666' }}>
