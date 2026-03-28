@@ -174,6 +174,9 @@ function Schedule({ schedule, setSchedule }) {
       const normalizedPrev = normalizeSchedule(prev);
 
       return {
+        dinner_start_time: prev?.dinner_start_time,
+        dinner_end_time: prev?.dinner_end_time,
+        planning_day: prev?.planning_day,
         ...normalizedPrev,
         [day]: {
           ...normalizedPrev[day],
