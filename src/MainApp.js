@@ -7,6 +7,7 @@ import ShoppingList from './ShoppingList';
 import PastWeeks from './PastWeeks';
 import Recipes from './Recipes';
 import AdminPanel from './AdminPanel';
+import Paywall from './Paywall';
 import { supabase } from './supabaseClient';
 
 const DEFAULT_SCHEDULE = {
@@ -30,6 +31,9 @@ function MainApp({ user }) {
   const [schedule, setScheduleRaw] = useState(DEFAULT_SCHEDULE);
   const [isBetaUser, setIsBetaUser] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState(null);
+  const [subscriptionTier, setSubscriptionTier] = useState(null);
+  const [accountCreatedAt, setAccountCreatedAt] = useState(null);
   const [hasNewAnnouncements, setHasNewAnnouncements] = useState(false);
   const [showBetaWelcome, setShowBetaWelcome] = useState(false);
   const [showPlanningBanner, setShowPlanningBanner] = useState(() => {
@@ -105,7 +109,7 @@ useEffect(() => {
   const loadAccount = async () => {
     const { data, error } = await supabase
       .from('accounts')
-      .select('beta_user, is_admin')
+      .select('beta_user, is_admin, subscription_status, subscription_tier, created_at')
       .eq('user_id', user.id)
       .single();
 
@@ -116,6 +120,9 @@ useEffect(() => {
 
     setIsBetaUser(!!data?.beta_user);
     setIsAdmin(!!data?.is_admin);
+    setSubscriptionStatus(data?.subscription_status || null);
+    setSubscriptionTier(data?.subscription_tier || null);
+    setAccountCreatedAt(data?.created_at || null);
   };
 
   if (user?.id) {
@@ -400,6 +407,29 @@ useEffect(() => {
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   const isPlanningDay = schedule?.planning_day && schedule.planning_day === today;
+
+  // Paywall check
+  const hasAccess = (() => {
+    if (subscriptionStatus === null && accountCreatedAt === null) return true; // still loading
+    if (subscriptionTier === 'beta_lifetime') return true;
+    if (subscriptionStatus === 'active' || subscriptionStatus === 'trialing') return true;
+    // 7-day grace period for new users who haven't subscribed yet
+    if (!subscriptionStatus && accountCreatedAt) {
+      const daysSinceSignup = (Date.now() - new Date(accountCreatedAt).getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSinceSignup < 7) return true;
+    }
+    return false;
+  })();
+
+  const daysLeftInTrial = (() => {
+    if (!accountCreatedAt || subscriptionStatus) return 0;
+    const daysSinceSignup = (Date.now() - new Date(accountCreatedAt).getTime()) / (1000 * 60 * 60 * 24);
+    return Math.max(0, Math.ceil(7 - daysSinceSignup));
+  })();
+
+  if (!hasAccess) {
+    return <Paywall user={user} daysLeftInTrial={daysLeftInTrial} />;
+  }
 
   return (
   <div className="app">
