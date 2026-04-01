@@ -158,6 +158,13 @@ const getEffectiveMealMinutes = (meal) => {
   return Math.max(parsedMinutes || 0, floorMinutes);
 };
 
+const PACE_CYCLE = ['busy', 'moderate', 'relaxed'];
+
+const getEffectivePace = (day, schedule, meals) => {
+  if (meals?.[day]?.paceOverride) return meals[day].paceOverride;
+  return getDayPace(schedule?.[day], schedule?.dinner_start_time);
+};
+
 const mealFitsPace = (meal, pace) => {
   const maxMinutes = getMaxMinutesForPace(pace);
   const effectiveMinutes = getEffectiveMealMinutes(meal);
@@ -458,7 +465,7 @@ const clearNotice = () => {
 
   const regenerateMealForDay = async (day, existingMeals) => {
     const familyInfo = buildFamilyInfo();
-    const pace = getDayPace(schedule?.[day], schedule?.dinner_start_time);
+    const pace = getEffectivePace(day, schedule, meals);
     const maxMinutes = getMaxMinutesForPace(pace);
 
     const otherMealNames = DAYS.filter((d) => d !== day)
@@ -492,7 +499,7 @@ const clearNotice = () => {
     const fixedMeals = { ...generatedMeals };
 
     for (const day of DAYS) {
-      const pace = getDayPace(schedule?.[day], schedule?.dinner_start_time);
+      const pace = getEffectivePace(day, schedule, meals);
       const meal = fixedMeals[day];
 
       if (!mealFitsPace(meal, pace)) {
@@ -661,7 +668,7 @@ RELAXED DAY MEAL RULES:
     try {
       const familyInfo = buildFamilyInfo();
       const scheduleInfo = DAYS.map((d) => {
-        const pace = getDayPace(schedule?.[d], schedule?.dinner_start_time);
+        const pace = getEffectivePace(d, schedule, meals);
         return `${d}: ${pace}\n${getPaceMealRules(pace)}`;
       }).join('\n\n');
 
@@ -755,7 +762,7 @@ const skipMealForDay = (day) => {
   const previousMealHadMods =
     Array.isArray(previousMeal?.modifications) &&
     previousMeal.modifications.some((mod) => mod.person);
-  const pace = getDayPace(schedule?.[day], schedule?.dinner_start_time);
+  const pace = getEffectivePace(day, schedule, meals);
 
   try {
     const current = meals[day] ? meals[day].name : '';
@@ -1224,7 +1231,17 @@ useEffect(() => {
       )}
 
      {DAYS.map((day) => {
-  const dayPace = getDayPace(schedule?.[day], schedule?.dinner_start_time);
+  const dayPace = getEffectivePace(day, schedule, meals);
+  const isManualPace = !!meals?.[day]?.paceOverride;
+
+  const cyclePace = () => {
+    const current = dayPace;
+    const next = PACE_CYCLE[(PACE_CYCLE.indexOf(current) + 1) % PACE_CYCLE.length];
+    setMeals((prev) => ({
+      ...prev,
+      [day]: { ...prev[day], paceOverride: next },
+    }));
+  };
 
   return (
     <div key={day} className="week-meal-card polished-meal-card">
@@ -1234,12 +1251,17 @@ useEffect(() => {
   {meals[day] && !meals[day]?.skipped && (
   <span
     className="pace-badge polished-pace-badge"
+    onClick={cyclePace}
+    title="Tap to change pace"
     style={{
       background: paceBg[dayPace],
-      color: paceColor[dayPace]
+      color: paceColor[dayPace],
+      cursor: 'pointer',
+      userSelect: 'none',
+      opacity: isManualPace ? 1 : 0.75,
     }}
   >
-    {dayPace}
+    {dayPace}{isManualPace ? ' ✎' : ''}
   </span>
 )}
 {meals[day] && !meals[day]?.skipped && (
