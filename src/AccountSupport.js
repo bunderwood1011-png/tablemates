@@ -131,11 +131,13 @@ function AccountSupport({ onLogout, onAnnouncementSeen }) {
   useEffect(() => {
     const loadAnnouncements = async () => {
       const [annRes, fbRes] = await Promise.all([
-        supabase.from('announcements').select('id, title, body, created_at').order('created_at', { ascending: false }),
+        supabase.from('announcements').select('id, title, body, created_at, linked_feedback_id').order('created_at', { ascending: false }),
         supabase.rpc('get_published_feedback'),
       ]);
       if (annRes.data) {
-        setAnnouncements(annRes.data);
+        // Only show announcements not linked to a specific feedback item in the shipped section
+        const globalAnnouncements = annRes.data.filter((a) => !a.linked_feedback_id);
+        setAnnouncements(globalAnnouncements);
         const lastSeen = localStorage.getItem('tm_last_seen_announcement');
         const hasNew = annRes.data.length > 0 && (!lastSeen || annRes.data[0].created_at > lastSeen);
         if (onAnnouncementSeen) onAnnouncementSeen(hasNew);
@@ -732,6 +734,13 @@ function AccountSupport({ onLogout, onAnnouncementSeen }) {
                             </div>
                           )}
                         </div>
+                        {fb.announcement_title && (
+                          <div style={{ background: '#f7f7f5', borderRadius: '10px', padding: '10px 12px', marginBottom: '10px', borderLeft: '3px solid #1D9E75' }}>
+                            <div style={{ fontSize: '11px', fontWeight: '700', color: '#1D9E75', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Response from Tablemates</div>
+                            <div style={{ fontSize: '13px', fontWeight: '600', color: '#1a1a1a', marginBottom: '2px' }}>{fb.announcement_title}</div>
+                            <div style={{ fontSize: '13px', color: '#555', lineHeight: '1.5' }}>{fb.announcement_body}</div>
+                          </div>
+                        )}
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button onClick={() => castVote(1)} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '20px', border: `1.5px solid ${fb.user_vote === 1 ? '#1D9E75' : '#e8e8e8'}`, background: fb.user_vote === 1 ? '#E1F5EE' : 'white', color: fb.user_vote === 1 ? '#1D9E75' : '#888', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
                             👍 <span>{fb.upvotes > 0 ? fb.upvotes : ''}</span>
