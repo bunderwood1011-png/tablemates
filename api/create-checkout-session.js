@@ -33,8 +33,15 @@ export default async function handler(req, res) {
   const { data: { user }, error: authError } = await supabase.auth.getUser(token);
   if (authError || !user) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { priceId } = req.body || {};
-  if (!priceId) return res.status(400).json({ error: 'Missing priceId' });
+  const { priceId, plan } = req.body || {};
+
+  // Resolve price from plan name (preferred) or fall back to explicit priceId
+  const PRICE_MAP = {
+    pro: process.env.STRIPE_PRO_PRICE_ID,
+    founding: process.env.STRIPE_FOUNDING_PRICE_ID,
+  };
+  const resolvedPriceId = (plan && PRICE_MAP[plan]) || priceId;
+  if (!resolvedPriceId) return res.status(400).json({ error: 'Missing priceId' });
 
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -66,10 +73,10 @@ export default async function handler(req, res) {
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     payment_method_types: ['card'],
-    line_items: [{ price: priceId, quantity: 1 }],
+    line_items: [{ price: resolvedPriceId, quantity: 1 }],
     mode: 'subscription',
     subscription_data: {
-      trial_period_days: priceId === process.env.STRIPE_PRO_PRICE_ID ? 7 : 0,
+      trial_period_days: resolvedPriceId === process.env.STRIPE_PRO_PRICE_ID ? 7 : 0,
     },
     success_url: `${appUrl}?checkout=success`,
     cancel_url: `${appUrl}?checkout=cancelled`,

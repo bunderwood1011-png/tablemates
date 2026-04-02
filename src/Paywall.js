@@ -5,7 +5,7 @@ export default function Paywall({ user, daysLeftInTrial }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const startCheckout = async (priceId) => {
+  const startCheckout = async (plan) => {
     setLoading(true);
     setError('');
     try {
@@ -16,7 +16,7 @@ export default function Paywall({ user, daysLeftInTrial }) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ priceId }),
+        body: JSON.stringify({ plan }),
       });
       const data = await res.json();
       if (data.url) {
@@ -103,7 +103,7 @@ export default function Paywall({ user, daysLeftInTrial }) {
           )}
 
           <button
-            onClick={() => startCheckout(PRO_PRICE_ID)}
+            onClick={() => startCheckout('pro')}
             disabled={loading}
             style={{
               width: '100%',

@@ -194,14 +194,14 @@ function AccountSupport({ onLogout, onAnnouncementSeen }) {
     loadUser();
   }, []);
 
-  const startCheckout = async (priceId) => {
+  const startCheckout = async (plan) => {
     setCheckoutLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ priceId }),
+        body: JSON.stringify({ plan }),
       });
       const data = await res.json();
       if (data.url) window.location.href = data.url;
@@ -562,7 +562,7 @@ function AccountSupport({ onLogout, onAnnouncementSeen }) {
                   Want to support Tablemates? You can optionally subscribe as a founding supporter for <strong>$2.99/mo</strong> — no pressure, your lifetime access stays regardless.
                 </div>
                 <button
-                  onClick={() => startCheckout(process.env.REACT_APP_STRIPE_FOUNDING_PRICE_ID)}
+                  onClick={() => startCheckout('founding')}
                   disabled={checkoutLoading}
                   style={{ ...primaryBtnStyle, background: '#E46A2E', opacity: checkoutLoading ? 0.6 : 1 }}
                 >
@@ -574,7 +574,7 @@ function AccountSupport({ onLogout, onAnnouncementSeen }) {
             {/* No subscription: show upgrade */}
             {!subscriptionTier && !subscriptionStatus && (
               <button
-                onClick={() => startCheckout(process.env.REACT_APP_STRIPE_PRO_PRICE_ID)}
+                onClick={() => startCheckout('pro')}
                 disabled={checkoutLoading}
                 style={{ ...primaryBtnStyle, opacity: checkoutLoading ? 0.6 : 1 }}
               >
