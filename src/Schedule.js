@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const PACE_CYCLE = ['busy', 'moderate', 'relaxed'];
 
@@ -169,6 +169,12 @@ function normalizeSchedule(schedule) {
 }
 
 function Schedule({ schedule, setSchedule, meals, setMeals }) {
+  const [expandedDays, setExpandedDays] = useState(new Set());
+  const toggleDay = (day) => setExpandedDays((prev) => {
+    const next = new Set(prev);
+    next.has(day) ? next.delete(day) : next.add(day);
+    return next;
+  });
   const normalizedSchedule = normalizeSchedule(schedule);
 
   const updateDayItems = (day, items) => {
@@ -255,6 +261,8 @@ function Schedule({ schedule, setSchedule, meals, setMeals }) {
         setMeals?.((prev) => ({ ...prev, [day]: { ...(prev?.[day] || {}), paceOverride: next === basePace ? undefined : next } }));
       };
 
+      const isExpanded = expandedDays.has(day);
+
       return (
         <div
           key={day}
@@ -267,43 +275,48 @@ function Schedule({ schedule, setSchedule, meals, setMeals }) {
             boxSizing: 'border-box',
           }}
         >
+          {/* Always-visible header — tap to expand/collapse */}
           <div
+            onClick={() => toggleDay(day)}
             style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               gap: '12px',
-              marginBottom: '14px',
-              flexWrap: 'wrap',
+              cursor: 'pointer',
+              marginBottom: isExpanded ? '14px' : '0',
             }}
           >
-            <div
-              style={{
-                fontSize: '16px',
-                fontWeight: '700',
-                color: '#1a1a1a',
-              }}
-            >
-              {day}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '16px', fontWeight: '700', color: '#1a1a1a' }}>{day}</div>
+              {!isExpanded && items.length > 0 && (
+                <div style={{ fontSize: '12px', color: '#aaa' }}>
+                  {items.length} {items.length === 1 ? 'activity' : 'activities'}
+                </div>
+              )}
             </div>
-
-            <button
-              onClick={cyclePace}
-              style={{
-                padding: '9px 15px',
-                borderRadius: '999px',
-                fontSize: '13px',
-                fontWeight: '700',
-                textTransform: 'lowercase',
-                border: 'none',
-                cursor: 'pointer',
-                ...paceStyles[pace],
-              }}
-            >
-              {pace}{paceOverride ? ' ✎' : ''}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              <button
+                onClick={(e) => { e.stopPropagation(); cyclePace(); }}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '999px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  textTransform: 'lowercase',
+                  border: 'none',
+                  cursor: 'pointer',
+                  ...paceStyles[pace],
+                }}
+              >
+                {pace}{paceOverride ? ' ✎' : ''}
+              </button>
+              <span style={{ fontSize: '16px', color: '#ccc', fontWeight: '300' }}>{isExpanded ? '−' : '+'}</span>
+            </div>
           </div>
 
+          {isExpanded && (
+            <>
           {items.length === 0 ? (
             <div
               style={{
@@ -448,6 +461,8 @@ function Schedule({ schedule, setSchedule, meals, setMeals }) {
           >
             + Add activity
           </button>
+            </>
+          )}
         </div>
       );
     })}
