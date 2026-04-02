@@ -707,15 +707,38 @@ function AccountSupport({ onLogout, onAnnouncementSeen }) {
                       planned:   { bg: '#E0F2FE', color: '#0369A1', label: 'Planned' },
                     };
                     const st = fb.status ? STATUS_STYLE[fb.status] : null;
+                    const castVote = async (v) => {
+                      await supabase.rpc('vote_feedback', { p_feedback_id: fb.id, p_vote: v });
+                      const newVote = fb.user_vote === v ? null : v;
+                      setPublishedFeedback((prev) => prev.map((item) => {
+                        if (item.id !== fb.id) return item;
+                        const wasUp = item.user_vote === 1;
+                        const wasDown = item.user_vote === -1;
+                        return {
+                          ...item,
+                          user_vote: newVote,
+                          upvotes: Number(item.upvotes) + (v === 1 ? (newVote === 1 ? 1 : -1) : (wasUp ? -1 : 0)),
+                          downvotes: Number(item.downvotes) + (v === -1 ? (newVote === -1 ? 1 : -1) : (wasDown ? -1 : 0)),
+                        };
+                      }));
+                    };
                     return (
                       <div key={fb.id} style={{ background: 'white', border: '1px solid #e8e8e8', borderRadius: '16px', padding: '16px 18px', marginBottom: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '12px' }}>
                           <div style={{ fontSize: '14px', color: '#333', lineHeight: '1.6', flex: 1 }}>{fb.message}</div>
                           {st && (
                             <div style={{ flexShrink: 0, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', background: st.bg, color: st.color }}>
                               {st.label}
                             </div>
                           )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button onClick={() => castVote(1)} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '20px', border: `1.5px solid ${fb.user_vote === 1 ? '#1D9E75' : '#e8e8e8'}`, background: fb.user_vote === 1 ? '#E1F5EE' : 'white', color: fb.user_vote === 1 ? '#1D9E75' : '#888', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+                            👍 <span>{fb.upvotes > 0 ? fb.upvotes : ''}</span>
+                          </button>
+                          <button onClick={() => castVote(-1)} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '20px', border: `1.5px solid ${fb.user_vote === -1 ? '#E46A2E' : '#e8e8e8'}`, background: fb.user_vote === -1 ? '#FEF0E7' : 'white', color: fb.user_vote === -1 ? '#E46A2E' : '#888', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+                            👎 <span>{fb.downvotes > 0 ? fb.downvotes : ''}</span>
+                          </button>
                         </div>
                       </div>
                     );

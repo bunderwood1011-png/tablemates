@@ -334,7 +334,15 @@ function AdminPanel() {
                 </div>
               )}
 
-              <div style={{ fontSize: '14px', color: '#333', lineHeight: '1.6', marginBottom: '10px' }}>{fb.message}</div>
+              <div style={{ fontSize: '14px', color: '#333', lineHeight: '1.6', marginBottom: '8px' }}>{fb.message}</div>
+
+              {/* Vote counts */}
+              {fb.is_published && (Number(fb.upvotes) > 0 || Number(fb.downvotes) > 0) && (
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '8px', fontSize: '12px', color: '#888' }}>
+                  {Number(fb.upvotes) > 0 && <span>👍 {fb.upvotes}</span>}
+                  {Number(fb.downvotes) > 0 && <span>👎 {fb.downvotes}</span>}
+                </div>
+              )}
 
               {/* Status + Publish controls */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px', flexWrap: 'wrap' }}>
