@@ -30,8 +30,6 @@ export default function Paywall({ user, daysLeftInTrial }) {
     setLoading(false);
   };
 
-  const PRO_PRICE_ID = process.env.REACT_APP_STRIPE_PRO_PRICE_ID;
-
   return (
     <div style={{
       minHeight: '100vh',
