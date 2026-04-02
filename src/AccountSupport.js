@@ -65,7 +65,9 @@ function AccountSupport({ onLogout, onAnnouncementSeen }) {
 
   // Account state
   const [userEmail, setUserEmail] = useState('');
-  const [membershipTier, setMembershipTier] = useState('');
+  const [subscriptionStatus, setSubscriptionStatus] = useState(null);
+  const [subscriptionTier, setSubscriptionTier] = useState(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [emailMsg, setEmailMsg] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -88,16 +90,32 @@ function AccountSupport({ onLogout, onAnnouncementSeen }) {
         // Load membership tier from accounts table
         const { data } = await supabase
           .from('accounts')
-          .select('beta_user')
+          .select('beta_user, subscription_status, subscription_tier')
           .eq('user_id', user.id)
           .single();
         if (data) {
-          setMembershipTier(data.beta_user ? 'Beta' : 'Free');
+          setSubscriptionStatus(data.subscription_status || null);
+          setSubscriptionTier(data.subscription_tier || null);
         }
       }
     };
     loadUser();
   }, []);
+
+  const startCheckout = async (priceId) => {
+    setCheckoutLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ priceId }),
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch {}
+    setCheckoutLoading(false);
+  };
 
   useEffect(() => {
     const loadReferral = async () => {
@@ -413,23 +431,62 @@ function AccountSupport({ onLogout, onAnnouncementSeen }) {
 
           {/* Membership tier */}
           <div style={sectionLabelStyle}>membership</div>
-          <div style={{ ...sectionCardStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: '15px', fontWeight: '600', color: '#222' }}>Current Plan</div>
-              <div style={{ fontSize: '13px', color: '#777', marginTop: '4px' }}>
-                {membershipTier === 'Beta' ? 'Early access — free during beta' : 'Free'}
+          <div style={sectionCardStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: subscriptionTier === 'beta_lifetime' ? '0' : '14px' }}>
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: '600', color: '#222' }}>
+                  {subscriptionTier === 'beta_lifetime' ? 'Lifetime Access' :
+                   subscriptionTier === 'founding' ? 'Founding Supporter' :
+                   subscriptionStatus === 'active' ? 'Tablemates Pro' :
+                   subscriptionStatus === 'trialing' ? 'Free Trial' : 'Free'}
+                </div>
+                <div style={{ fontSize: '13px', color: '#777', marginTop: '4px' }}>
+                  {subscriptionTier === 'beta_lifetime' ? 'Thank you for being an early believer 💚' :
+                   subscriptionTier === 'founding' ? '$2.99/mo — thank you for your support!' :
+                   subscriptionStatus === 'active' ? '$6.99/mo' :
+                   subscriptionStatus === 'trialing' ? '7-day trial active' :
+                   'No active subscription'}
+                </div>
+              </div>
+              <div style={{
+                background: subscriptionTier === 'beta_lifetime' ? '#E1F5EE' :
+                            subscriptionStatus === 'active' || subscriptionStatus === 'trialing' ? '#E1F5EE' : '#F3F4F6',
+                color: subscriptionTier === 'beta_lifetime' || subscriptionStatus === 'active' || subscriptionStatus === 'trialing' ? '#1D9E75' : '#666',
+                fontSize: '12px', fontWeight: '700', padding: '5px 12px', borderRadius: '20px', flexShrink: 0,
+              }}>
+                {subscriptionTier === 'beta_lifetime' ? 'Lifetime' :
+                 subscriptionTier === 'founding' ? 'Founding' :
+                 subscriptionStatus === 'active' ? 'Active' :
+                 subscriptionStatus === 'trialing' ? 'Trial' : 'Free'}
               </div>
             </div>
-            <div style={{
-              background: membershipTier === 'Beta' ? '#FDF0EE' : '#F3F4F6',
-              color: membershipTier === 'Beta' ? '#1D9E75' : '#666',
-              fontSize: '13px',
-              fontWeight: '700',
-              padding: '5px 12px',
-              borderRadius: '20px',
-            }}>
-              {membershipTier || '—'}
-            </div>
+
+            {/* Beta lifetime: offer optional founding supporter upgrade */}
+            {subscriptionTier === 'beta_lifetime' && (
+              <div style={{ marginTop: '14px', borderTop: '1px solid #f0f0f0', paddingTop: '14px' }}>
+                <div style={{ fontSize: '13px', color: '#555', lineHeight: '1.6', marginBottom: '10px' }}>
+                  Want to support Tablemates? You can optionally subscribe as a founding supporter for <strong>$2.99/mo</strong> — no pressure, your lifetime access stays regardless.
+                </div>
+                <button
+                  onClick={() => startCheckout(process.env.REACT_APP_STRIPE_FOUNDING_PRICE_ID)}
+                  disabled={checkoutLoading}
+                  style={{ ...primaryBtnStyle, background: '#E46A2E', opacity: checkoutLoading ? 0.6 : 1 }}
+                >
+                  {checkoutLoading ? 'Redirecting...' : 'Support Tablemates — $2.99/mo'}
+                </button>
+              </div>
+            )}
+
+            {/* No subscription: show upgrade */}
+            {!subscriptionTier && !subscriptionStatus && (
+              <button
+                onClick={() => startCheckout(process.env.REACT_APP_STRIPE_PRO_PRICE_ID)}
+                disabled={checkoutLoading}
+                style={{ ...primaryBtnStyle, opacity: checkoutLoading ? 0.6 : 1 }}
+              >
+                {checkoutLoading ? 'Redirecting...' : 'Upgrade to Pro — $6.99/mo'}
+              </button>
+            )}
           </div>
 
           {/* Change email */}

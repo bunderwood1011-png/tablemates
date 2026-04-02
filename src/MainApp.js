@@ -35,6 +35,14 @@ function MainApp({ user }) {
   const [subscriptionTier, setSubscriptionTier] = useState(null);
   const [accountCreatedAt, setAccountCreatedAt] = useState(null);
   const [hasNewAnnouncements, setHasNewAnnouncements] = useState(false);
+  const [checkoutSuccess, setCheckoutSuccess] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('checkout') === 'success') {
+      window.history.replaceState({}, '', window.location.pathname);
+      return true;
+    }
+    return false;
+  });
   const [showBetaWelcome, setShowBetaWelcome] = useState(false);
   const [showPlanningBanner, setShowPlanningBanner] = useState(() => {
     const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
@@ -433,6 +441,12 @@ useEffect(() => {
 
   return (
   <div className="app">
+    {checkoutSuccess && (
+      <div style={{ background: '#1D9E75', color: 'white', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '14px', fontWeight: '600' }}>
+        <span>You're subscribed! Welcome to Tablemates Pro.</span>
+        <button onClick={() => setCheckoutSuccess(false)} style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+      </div>
+    )}
 
     {isPlanningDay && showPlanningBanner && (
       <div style={{
