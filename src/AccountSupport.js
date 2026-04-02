@@ -55,6 +55,97 @@ const TERMS_OF_SERVICE = [
   { type: 'body', text: 'For questions about these terms, please use the Feedback form in the app.' },
 ];
 
+const STATUS_STYLE = {
+  launched: { bg: '#D1FAE5', color: '#065F46', label: 'Launched' },
+  upcoming: { bg: '#FEF3C7', color: '#B45309', label: 'Upcoming' },
+  planned:  { bg: '#E0F2FE', color: '#0369A1', label: 'Planned' },
+};
+
+function FeedbackCard({ fb, setPublishedFeedback }) {
+  const st = fb.status ? STATUS_STYLE[fb.status] : null;
+  const castVote = async (v) => {
+    await supabase.rpc('vote_feedback', { p_feedback_id: fb.id, p_vote: v });
+    const newVote = fb.user_vote === v ? null : v;
+    setPublishedFeedback((prev) => prev.map((item) => {
+      if (item.id !== fb.id) return item;
+      const wasUp = item.user_vote === 1;
+      const wasDown = item.user_vote === -1;
+      return {
+        ...item,
+        user_vote: newVote,
+        upvotes: Number(item.upvotes) + (v === 1 ? (newVote === 1 ? 1 : -1) : (wasUp ? -1 : 0)),
+        downvotes: Number(item.downvotes) + (v === -1 ? (newVote === -1 ? 1 : -1) : (wasDown ? -1 : 0)),
+      };
+    }));
+  };
+  return (
+    <div style={{ background: 'white', border: '1px solid #e8e8e8', borderRadius: '16px', padding: '16px 18px', marginBottom: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '10px' }}>
+        <div style={{ fontSize: '14px', color: '#333', lineHeight: '1.6', flex: 1 }}>{fb.message}</div>
+        {st && (
+          <div style={{ flexShrink: 0, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', background: st.bg, color: st.color }}>
+            {st.label}
+          </div>
+        )}
+      </div>
+      {fb.announcement_title && (
+        <div style={{ background: '#f7f7f5', borderRadius: '10px', padding: '10px 12px', marginBottom: '10px', borderLeft: '3px solid #1D9E75' }}>
+          <div style={{ fontSize: '11px', fontWeight: '700', color: '#1D9E75', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Response from Tablemates</div>
+          <div style={{ fontSize: '13px', fontWeight: '600', color: '#1a1a1a', marginBottom: '2px' }}>{fb.announcement_title}</div>
+          <div style={{ fontSize: '13px', color: '#555', lineHeight: '1.5' }}>{fb.announcement_body}</div>
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button onClick={() => castVote(1)} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '20px', border: `1.5px solid ${fb.user_vote === 1 ? '#1D9E75' : '#e8e8e8'}`, background: fb.user_vote === 1 ? '#E1F5EE' : 'white', color: fb.user_vote === 1 ? '#1D9E75' : '#888', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+          👍 {fb.upvotes > 0 ? fb.upvotes : ''}
+        </button>
+        <button onClick={() => castVote(-1)} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '20px', border: `1.5px solid ${fb.user_vote === -1 ? '#E46A2E' : '#e8e8e8'}`, background: fb.user_vote === -1 ? '#FEF0E7' : 'white', color: fb.user_vote === -1 ? '#E46A2E' : '#888', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+          👎 {fb.downvotes > 0 ? fb.downvotes : ''}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function WhatsnewContent({ announcements, publishedFeedback, setPublishedFeedback }) {
+  const launchedFeedback = publishedFeedback.filter((fb) => fb.status === 'launched');
+  const roadmapFeedback = publishedFeedback.filter((fb) => fb.status !== 'launched');
+  const hasShipped = announcements.length > 0 || launchedFeedback.length > 0;
+  const hasRoadmap = roadmapFeedback.length > 0;
+  const sectionLabel = { fontSize: '11px', fontWeight: '700', color: '#aaa', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '10px' };
+  return (
+    <>
+      {hasShipped && (
+        <>
+          <div style={sectionLabel}>shipped</div>
+          {announcements.map((a) => (
+            <div key={a.id} style={{ background: 'white', border: '1px solid #e8e8e8', borderRadius: '16px', padding: '18px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                <div style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a' }}>{a.title}</div>
+                <div style={{ fontSize: '11px', color: '#aaa', flexShrink: 0, marginLeft: '12px' }}>
+                  {new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </div>
+              </div>
+              <div style={{ fontSize: '14px', color: '#555', lineHeight: '1.6' }}>{a.body}</div>
+            </div>
+          ))}
+          {launchedFeedback.map((fb) => (
+            <FeedbackCard key={fb.id} fb={fb} setPublishedFeedback={setPublishedFeedback} />
+          ))}
+        </>
+      )}
+      {hasRoadmap && (
+        <>
+          <div style={{ ...sectionLabel, marginTop: hasShipped ? '20px' : '0' }}>on the roadmap</div>
+          {roadmapFeedback.map((fb) => (
+            <FeedbackCard key={fb.id} fb={fb} setPublishedFeedback={setPublishedFeedback} />
+          ))}
+        </>
+      )}
+    </>
+  );
+}
+
 function AccountSupport({ onLogout, onAnnouncementSeen }) {
   const [view, setView] = useState('menu');
   const [feedback, setFeedback] = useState('');
@@ -682,79 +773,11 @@ function AccountSupport({ onLogout, onAnnouncementSeen }) {
               Nothing yet — check back soon!
             </div>
           ) : (
-            <>
-              {announcements.length > 0 && (
-                <>
-                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#aaa', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '10px' }}>shipped</div>
-                  {announcements.map((a) => (
-                    <div key={a.id} style={{ background: 'white', border: '1px solid #e8e8e8', borderRadius: '16px', padding: '18px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                        <div style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a' }}>{a.title}</div>
-                        <div style={{ fontSize: '11px', color: '#aaa', flexShrink: 0, marginLeft: '12px' }}>
-                          {new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </div>
-                      </div>
-                      <div style={{ fontSize: '14px', color: '#555', lineHeight: '1.6' }}>{a.body}</div>
-                    </div>
-                  ))}
-                </>
-              )}
-              {publishedFeedback.length > 0 && (
-                <>
-                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#aaa', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '10px', marginTop: announcements.length > 0 ? '20px' : '0' }}>on the roadmap</div>
-                  {publishedFeedback.map((fb) => {
-                    const STATUS_STYLE = {
-                      launched:  { bg: '#D1FAE5', color: '#065F46', label: 'Launched' },
-                      upcoming:  { bg: '#FEF3C7', color: '#B45309', label: 'Upcoming' },
-                      planned:   { bg: '#E0F2FE', color: '#0369A1', label: 'Planned' },
-                    };
-                    const st = fb.status ? STATUS_STYLE[fb.status] : null;
-                    const castVote = async (v) => {
-                      await supabase.rpc('vote_feedback', { p_feedback_id: fb.id, p_vote: v });
-                      const newVote = fb.user_vote === v ? null : v;
-                      setPublishedFeedback((prev) => prev.map((item) => {
-                        if (item.id !== fb.id) return item;
-                        const wasUp = item.user_vote === 1;
-                        const wasDown = item.user_vote === -1;
-                        return {
-                          ...item,
-                          user_vote: newVote,
-                          upvotes: Number(item.upvotes) + (v === 1 ? (newVote === 1 ? 1 : -1) : (wasUp ? -1 : 0)),
-                          downvotes: Number(item.downvotes) + (v === -1 ? (newVote === -1 ? 1 : -1) : (wasDown ? -1 : 0)),
-                        };
-                      }));
-                    };
-                    return (
-                      <div key={fb.id} style={{ background: 'white', border: '1px solid #e8e8e8', borderRadius: '16px', padding: '16px 18px', marginBottom: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '12px' }}>
-                          <div style={{ fontSize: '14px', color: '#333', lineHeight: '1.6', flex: 1 }}>{fb.message}</div>
-                          {st && (
-                            <div style={{ flexShrink: 0, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', background: st.bg, color: st.color }}>
-                              {st.label}
-                            </div>
-                          )}
-                        </div>
-                        {fb.announcement_title && (
-                          <div style={{ background: '#f7f7f5', borderRadius: '10px', padding: '10px 12px', marginBottom: '10px', borderLeft: '3px solid #1D9E75' }}>
-                            <div style={{ fontSize: '11px', fontWeight: '700', color: '#1D9E75', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Response from Tablemates</div>
-                            <div style={{ fontSize: '13px', fontWeight: '600', color: '#1a1a1a', marginBottom: '2px' }}>{fb.announcement_title}</div>
-                            <div style={{ fontSize: '13px', color: '#555', lineHeight: '1.5' }}>{fb.announcement_body}</div>
-                          </div>
-                        )}
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button onClick={() => castVote(1)} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '20px', border: `1.5px solid ${fb.user_vote === 1 ? '#1D9E75' : '#e8e8e8'}`, background: fb.user_vote === 1 ? '#E1F5EE' : 'white', color: fb.user_vote === 1 ? '#1D9E75' : '#888', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
-                            👍 <span>{fb.upvotes > 0 ? fb.upvotes : ''}</span>
-                          </button>
-                          <button onClick={() => castVote(-1)} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '20px', border: `1.5px solid ${fb.user_vote === -1 ? '#E46A2E' : '#e8e8e8'}`, background: fb.user_vote === -1 ? '#FEF0E7' : 'white', color: fb.user_vote === -1 ? '#E46A2E' : '#888', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
-                            👎 <span>{fb.downvotes > 0 ? fb.downvotes : ''}</span>
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </>
-              )}
-            </>
+            <WhatsnewContent
+              announcements={announcements}
+              publishedFeedback={publishedFeedback}
+              setPublishedFeedback={setPublishedFeedback}
+            />
           )}
         </div>
       )}
