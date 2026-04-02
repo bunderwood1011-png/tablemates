@@ -172,6 +172,13 @@ function Schedule({ schedule, setSchedule, meals, setMeals }) {
   const normalizedSchedule = normalizeSchedule(schedule);
 
   const updateDayItems = (day, items) => {
+    // Clear any manual pace override so AI recalculates from new items
+    setMeals?.((prev) => {
+      if (!prev?.[day]?.paceOverride) return prev;
+      const updated = { ...prev, [day]: { ...prev[day] } };
+      delete updated[day].paceOverride;
+      return updated;
+    });
     setSchedule((prev) => {
       const normalizedPrev = normalizeSchedule(prev);
 
