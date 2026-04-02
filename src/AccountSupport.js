@@ -60,6 +60,7 @@ function AccountSupport({ onLogout, onAnnouncementSeen }) {
   const [feedback, setFeedback] = useState('');
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
+  const [publishedFeedback, setPublishedFeedback] = useState([]);
   const [feedbackCategory, setFeedbackCategory] = useState('');
   const [openFaq, setOpenFaq] = useState(null);
 
@@ -129,17 +130,17 @@ function AccountSupport({ onLogout, onAnnouncementSeen }) {
 
   useEffect(() => {
     const loadAnnouncements = async () => {
-      const { data } = await supabase
-        .from('announcements')
-        .select('id, title, body, created_at')
-        .order('created_at', { ascending: false });
-      if (data) {
-        setAnnouncements(data);
-        // Notify parent if there are unseen announcements
+      const [annRes, fbRes] = await Promise.all([
+        supabase.from('announcements').select('id, title, body, created_at').order('created_at', { ascending: false }),
+        supabase.rpc('get_published_feedback'),
+      ]);
+      if (annRes.data) {
+        setAnnouncements(annRes.data);
         const lastSeen = localStorage.getItem('tm_last_seen_announcement');
-        const hasNew = data.length > 0 && (!lastSeen || data[0].created_at > lastSeen);
+        const hasNew = annRes.data.length > 0 && (!lastSeen || annRes.data[0].created_at > lastSeen);
         if (onAnnouncementSeen) onAnnouncementSeen(hasNew);
       }
+      if (fbRes.data) setPublishedFeedback(fbRes.data);
     };
     loadAnnouncements();
   }, [onAnnouncementSeen]);
@@ -674,21 +675,55 @@ function AccountSupport({ onLogout, onAnnouncementSeen }) {
           <div style={{ fontSize: '14px', color: '#666', marginBottom: '20px', lineHeight: '1.5' }}>
             Updates and improvements based on your feedback.
           </div>
-          {announcements.length === 0 ? (
+          {announcements.length === 0 && publishedFeedback.length === 0 ? (
             <div style={{ textAlign: 'center', color: '#999', fontSize: '14px', padding: '40px 0' }}>
               Nothing yet — check back soon!
             </div>
-          ) : announcements.map((a) => (
-            <div key={a.id} style={{ background: 'white', border: '1px solid #e8e8e8', borderRadius: '16px', padding: '18px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                <div style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a' }}>{a.title}</div>
-                <div style={{ fontSize: '11px', color: '#aaa', flexShrink: 0, marginLeft: '12px' }}>
-                  {new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                </div>
-              </div>
-              <div style={{ fontSize: '14px', color: '#555', lineHeight: '1.6' }}>{a.body}</div>
-            </div>
-          ))}
+          ) : (
+            <>
+              {announcements.length > 0 && (
+                <>
+                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#aaa', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '10px' }}>shipped</div>
+                  {announcements.map((a) => (
+                    <div key={a.id} style={{ background: 'white', border: '1px solid #e8e8e8', borderRadius: '16px', padding: '18px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                        <div style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a' }}>{a.title}</div>
+                        <div style={{ fontSize: '11px', color: '#aaa', flexShrink: 0, marginLeft: '12px' }}>
+                          {new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '14px', color: '#555', lineHeight: '1.6' }}>{a.body}</div>
+                    </div>
+                  ))}
+                </>
+              )}
+              {publishedFeedback.length > 0 && (
+                <>
+                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#aaa', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '10px', marginTop: announcements.length > 0 ? '20px' : '0' }}>on the roadmap</div>
+                  {publishedFeedback.map((fb) => {
+                    const STATUS_STYLE = {
+                      launched:  { bg: '#D1FAE5', color: '#065F46', label: 'Launched' },
+                      upcoming:  { bg: '#FEF3C7', color: '#B45309', label: 'Upcoming' },
+                      planned:   { bg: '#E0F2FE', color: '#0369A1', label: 'Planned' },
+                    };
+                    const st = fb.status ? STATUS_STYLE[fb.status] : null;
+                    return (
+                      <div key={fb.id} style={{ background: 'white', border: '1px solid #e8e8e8', borderRadius: '16px', padding: '16px 18px', marginBottom: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                          <div style={{ fontSize: '14px', color: '#333', lineHeight: '1.6', flex: 1 }}>{fb.message}</div>
+                          {st && (
+                            <div style={{ flexShrink: 0, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', background: st.bg, color: st.color }}>
+                              {st.label}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </>
+          )}
         </div>
       )}
 

@@ -30,6 +30,9 @@ function AdminPanel() {
   const [announceBody, setAnnounceBody] = useState('');
   const [announcing, setAnnouncing] = useState(false);
   const [announced, setAnnounced] = useState({}); // feedbackId -> true
+  const [deletingId, setDeletingId] = useState(null);
+  const [statusUpdating, setStatusUpdating] = useState(null);
+  const [publishingId, setPublishingId] = useState(null);
 
   const [loadError, setLoadError] = useState('');
 
@@ -111,6 +114,28 @@ function AdminPanel() {
     setAnnounceTitle('');
     setAnnounceBody('');
     setAnnouncing(false);
+  };
+
+  const deleteFeedback = async (id) => {
+    if (!window.confirm('Delete this feedback? This cannot be undone.')) return;
+    setDeletingId(id);
+    await supabase.rpc('delete_feedback_admin', { p_feedback_id: id });
+    setFeedback((prev) => prev.filter((f) => f.id !== id));
+    setDeletingId(null);
+  };
+
+  const setFeedbackStatus = async (id, status) => {
+    setStatusUpdating(id);
+    await supabase.rpc('set_feedback_status_admin', { p_feedback_id: id, p_status: status });
+    setFeedback((prev) => prev.map((f) => f.id === id ? { ...f, status } : f));
+    setStatusUpdating(null);
+  };
+
+  const togglePublished = async (id, currentPublished) => {
+    setPublishingId(id);
+    await supabase.rpc('set_feedback_published_admin', { p_feedback_id: id, p_published: !currentPublished });
+    setFeedback((prev) => prev.map((f) => f.id === id ? { ...f, is_published: !currentPublished } : f));
+    setPublishingId(null);
   };
 
   const betaCount = accounts.filter((a) => a.beta_user).length;
@@ -278,19 +303,77 @@ function AdminPanel() {
           const catStyle = CATEGORY_COLORS[fb.category] || CATEGORY_COLORS['Other'];
           const isResponding = respondingTo === fb.id;
           const isDone = announced[fb.id];
+          const STATUS_OPTIONS = ['planned', 'upcoming', 'launched'];
+          const STATUS_STYLES = {
+            planned:  { bg: '#E0F2FE', color: '#0369A1' },
+            upcoming: { bg: '#FEF3C7', color: '#B45309' },
+            launched: { bg: '#D1FAE5', color: '#065F46' },
+          };
           return (
-            <div key={fb.id} style={cardStyle}>
+            <div key={fb.id} style={{ ...cardStyle, opacity: deletingId === fb.id ? 0.4 : 1 }}>
+              {/* Header row */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                 <div style={{ fontSize: '12px', fontWeight: '600', color: '#888' }}>{maskEmail(fb.email)}</div>
-                <div style={{ fontSize: '11px', color: '#aaa' }}>{formatDateTime(fb.created_at)}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ fontSize: '11px', color: '#aaa' }}>{formatDateTime(fb.created_at)}</div>
+                  <button
+                    onClick={() => deleteFeedback(fb.id)}
+                    disabled={!!deletingId}
+                    style={{ fontSize: '13px', color: '#ccc', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
+                    title="Delete"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
+
+              {/* Category badge */}
               {fb.category && (
                 <div style={{ display: 'inline-block', marginBottom: '8px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', background: catStyle.bg, color: catStyle.color }}>
                   {fb.category}
                 </div>
               )}
+
               <div style={{ fontSize: '14px', color: '#333', lineHeight: '1.6', marginBottom: '10px' }}>{fb.message}</div>
 
+              {/* Status + Publish controls */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                {STATUS_OPTIONS.map((s) => {
+                  const active = fb.status === s;
+                  const st = STATUS_STYLES[s];
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => setFeedbackStatus(fb.id, active ? null : s)}
+                      disabled={statusUpdating === fb.id}
+                      style={{
+                        padding: '3px 10px', borderRadius: '20px', border: `1.5px solid ${active ? st.color : '#e0e0e0'}`,
+                        background: active ? st.bg : 'white', color: active ? st.color : '#aaa',
+                        fontSize: '11px', fontWeight: '700', cursor: 'pointer',
+                        opacity: statusUpdating === fb.id ? 0.5 : 1,
+                      }}
+                    >
+                      {s}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => togglePublished(fb.id, fb.is_published)}
+                  disabled={publishingId === fb.id}
+                  style={{
+                    marginLeft: 'auto', padding: '3px 12px', borderRadius: '20px',
+                    border: `1.5px solid ${fb.is_published ? '#7C3AED' : '#e0e0e0'}`,
+                    background: fb.is_published ? '#F3E8FF' : 'white',
+                    color: fb.is_published ? '#7C3AED' : '#aaa',
+                    fontSize: '11px', fontWeight: '700', cursor: 'pointer',
+                    opacity: publishingId === fb.id ? 0.5 : 1,
+                  }}
+                >
+                  {fb.is_published ? '● Published' : 'Publish'}
+                </button>
+              </div>
+
+              {/* Announcement section */}
               {isDone ? (
                 <div style={{ fontSize: '12px', color: '#1D9E75', fontWeight: '600' }}>✓ Announcement posted</div>
               ) : isResponding ? (
