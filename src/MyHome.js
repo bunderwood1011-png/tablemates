@@ -493,235 +493,55 @@ const hasDinnerWindow =
     borderRadius: '16px',
   }}
 >
-  {!isEditingDinner && hasDinnerWindow ? (
-    <button
-      type="button"
-      onClick={() => setIsEditingDinner(true)}
-      style={{
-        width: '100%',
-        border: 'none',
-        background: 'transparent',
-        padding: 0,
-        textAlign: 'left',
-        cursor: 'pointer',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '4px',
-        }}
-      >
-        <div
-          style={{
-            fontSize: '12px',
-            fontWeight: '600',
-            color: '#E46A2E',
-          }}
-        >
-          Dinner
-        </div>
-
-        <div
-          style={{
-            fontSize: '12px',
-            color: '#6B7280',
-            fontWeight: '500',
-          }}
-        >
-          Edit
-        </div>
+  {/* Header row — always visible, tapping toggles edit mode */}
+  <button
+    type="button"
+    onClick={() => setIsEditingDinner(!isEditingDinner)}
+    style={{ width: '100%', border: 'none', background: 'transparent', padding: 0, textAlign: 'left', cursor: 'pointer' }}
+  >
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ fontSize: '12px', fontWeight: '600', color: '#E46A2E' }}>Dinner time</div>
+      <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: '500' }}>
+        {isEditingDinner ? 'Done' : hasDinnerWindow ? 'Edit' : 'Set'}
       </div>
+    </div>
+    <div style={{ fontSize: '15px', fontWeight: '600', color: '#1F2937', marginTop: '4px' }}>
+      {hasDinnerWindow
+        ? `${formatDinnerTime(schedule?.dinner_start_time)} – ${formatDinnerTime(schedule?.dinner_end_time)}`
+        : 'Not set'}
+    </div>
+  </button>
 
-      <div
-        style={{
-          fontSize: '15px',
-          fontWeight: '600',
-          color: '#1F2937',
-        }}
-      >
-        {formatDinnerTime(schedule?.dinner_start_time)}–{formatDinnerTime(schedule?.dinner_end_time)}
-      </div>
-
-      {!dinnerTimeError && dinnerSaveStatus === 'saved' ? (
-        <div
-          style={{
-            marginTop: '6px',
-            fontSize: '12px',
-            color: '#1D9E75',
-            fontWeight: '600',
-          }}
-        >
-          Saved
-        </div>
-      ) : null}
-    </button>
-  ) : (
-    <>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '12px',
-          marginBottom: '6px',
-        }}
-      >
-        <div
-          style={{
-            fontSize: '13px',
-            fontWeight: '600',
-            color: '#6B7280',
-          }}
-        >
-          What time frame do you usually like to eat dinner?
-        </div>
-
-        {hasDinnerWindow ? (
-          <button
-            type="button"
-            onClick={() => setIsEditingDinner(false)}
-            style={{
-              border: 'none',
-              background: 'transparent',
-              color: '#E46A2E',
-              fontSize: '12px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              padding: 0,
-            }}
-          >
-            Done
-          </button>
-        ) : null}
-      </div>
-
-      <div
-        style={{
-          fontSize: '13px',
-          color: '#6B7280',
-          marginBottom: '12px',
-          lineHeight: 1.45,
-        }}
-      >
-        We use this to make your meal plan fit your real evenings better.
-      </div>
-
+  {/* Expandable selects */}
+  {isEditingDinner && (
+    <div style={{ marginTop: '14px' }}>
       <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: '160px' }}>
-          <div
-            style={{
-              fontSize: '12px',
-              fontWeight: '600',
-              color: '#4B5563',
-              marginBottom: '6px',
-            }}
-          >
-            Start
-          </div>
-
+        <div style={{ flex: 1, minWidth: '140px' }}>
+          <div style={{ fontSize: '12px', fontWeight: '600', color: '#4B5563', marginBottom: '6px' }}>Start</div>
           <select
             value={schedule?.dinner_start_time || ''}
-            onChange={(e) =>
-              updateDinnerTime('dinner_start_time', e.target.value)
-            }
-            style={{
-              width: '100%',
-              padding: '12px',
-              borderRadius: '12px',
-              border: '1px solid #D1D5DB',
-              fontSize: '14px',
-              background: '#fff',
-              color: '#111827',
-            }}
+            onChange={(e) => updateDinnerTime('dinner_start_time', e.target.value)}
+            style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #D1D5DB', fontSize: '14px', background: '#fff', color: '#111827' }}
           >
             <option value="">Select time</option>
-            {DINNER_TIME_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
+            {DINNER_TIME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
-
-        <div style={{ flex: 1, minWidth: '160px' }}>
-          <div
-            style={{
-              fontSize: '12px',
-              fontWeight: '600',
-              color: '#4B5563',
-              marginBottom: '6px',
-            }}
-          >
-            End
-          </div>
-
+        <div style={{ flex: 1, minWidth: '140px' }}>
+          <div style={{ fontSize: '12px', fontWeight: '600', color: '#4B5563', marginBottom: '6px' }}>End</div>
           <select
             value={schedule?.dinner_end_time || ''}
-            onChange={(e) =>
-              updateDinnerTime('dinner_end_time', e.target.value)
-            }
-            style={{
-              width: '100%',
-              padding: '12px',
-              borderRadius: '12px',
-              border: '1px solid #D1D5DB',
-              fontSize: '14px',
-              background: '#fff',
-              color: '#111827',
-            }}
+            onChange={(e) => updateDinnerTime('dinner_end_time', e.target.value)}
+            style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #D1D5DB', fontSize: '14px', background: '#fff', color: '#111827' }}
           >
             <option value="">Select time</option>
-            {DINNER_TIME_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
+            {DINNER_TIME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
       </div>
-
-      {dinnerTimeError ? (
-        <div
-          style={{
-            marginTop: '10px',
-            fontSize: '12px',
-            color: '#B42318',
-            fontWeight: '500',
-          }}
-        >
-          {dinnerTimeError}
-        </div>
-      ) : null}
-
-      {!dinnerTimeError && dinnerSaveStatus === 'saving' ? (
-        <div
-          style={{
-            marginTop: '10px',
-            fontSize: '12px',
-            color: '#6B7280',
-            fontWeight: '500',
-          }}
-        >
-          Saving dinner time...
-        </div>
-      ) : null}
-
-      {!dinnerTimeError && dinnerSaveStatus === 'saved' ? (
-        <div
-          style={{
-            marginTop: '10px',
-            fontSize: '12px',
-            color: '#1D9E75',
-            fontWeight: '600',
-          }}
-        >
-          Dinner time saved
-        </div>
-      ) : null}
-    </>
+      {dinnerTimeError && <div style={{ marginTop: '10px', fontSize: '12px', color: '#B42318', fontWeight: '500' }}>{dinnerTimeError}</div>}
+      {!dinnerTimeError && dinnerSaveStatus === 'saved' && <div style={{ marginTop: '10px', fontSize: '12px', color: '#1D9E75', fontWeight: '600' }}>Saved</div>}
+    </div>
   )}
 </div>
 

@@ -281,12 +281,15 @@ useEffect(() => {
   };
 
   const setSchedule = async (newScheduleOrUpdater) => {
-  const resolvedSchedule =
-    typeof newScheduleOrUpdater === 'function'
-      ? newScheduleOrUpdater(schedule)
-      : newScheduleOrUpdater;
+  let resolvedSchedule;
 
-  setScheduleRaw(resolvedSchedule);
+  // Use functional form so we always get the latest state, avoiding stale closure overwrites
+  setScheduleRaw((prev) => {
+    resolvedSchedule = typeof newScheduleOrUpdater === 'function'
+      ? newScheduleOrUpdater(prev)
+      : newScheduleOrUpdater;
+    return resolvedSchedule;
+  });
 
   // 👇 separate dinner times from schedule JSON
   const cleanedSchedule = { ...resolvedSchedule };
