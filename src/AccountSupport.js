@@ -112,7 +112,7 @@ function WhatsnewContent({ announcements, publishedFeedback, setPublishedFeedbac
   const roadmapFeedback = publishedFeedback.filter((fb) => fb.status !== 'launched');
   const hasShipped = announcements.length > 0 || launchedFeedback.length > 0;
   const hasRoadmap = roadmapFeedback.length > 0;
-  const sectionLabel = { fontSize: '11px', fontWeight: '700', color: '#aaa', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '10px' };
+  const sectionLabel = { fontSize: '11px', fontWeight: '700', color: '#E46A2E', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '10px' };
   return (
     <>
       {hasShipped && (
@@ -122,7 +122,7 @@ function WhatsnewContent({ announcements, publishedFeedback, setPublishedFeedbac
             <div key={a.id} style={{ background: 'white', border: '1px solid #e8e8e8', borderRadius: '16px', padding: '18px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                 <div style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a' }}>{a.title}</div>
-                <div style={{ fontSize: '11px', color: '#aaa', flexShrink: 0, marginLeft: '12px' }}>
+                <div style={{ fontSize: '11px', color: '#E46A2E', flexShrink: 0, marginLeft: '12px' }}>
                   {new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </div>
               </div>
