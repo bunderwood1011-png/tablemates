@@ -812,6 +812,18 @@ body {
   font-family: inherit;
 }
 
+.modal-sheet .tag-section {
+  margin-bottom: 12px;
+}
+
+.modal-sheet .tag-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .modal-sheet .tag-row {
   display: flex;
   flex-wrap: wrap;
