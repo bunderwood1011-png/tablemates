@@ -1,5 +1,7 @@
 import React from 'react';
 
+const PACE_CYCLE = ['busy', 'moderate', 'relaxed'];
+
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 const paceStyles = {
@@ -166,7 +168,7 @@ function normalizeSchedule(schedule) {
   return normalized;
 }
 
-function Schedule({ schedule, setSchedule }) {
+function Schedule({ schedule, setSchedule, meals, setMeals }) {
   const normalizedSchedule = normalizeSchedule(schedule);
 
   const updateDayItems = (day, items) => {
@@ -238,7 +240,13 @@ function Schedule({ schedule, setSchedule }) {
   <div>
     {DAYS.map((day) => {
       const items = normalizedSchedule[day]?.items || [];
-      const pace = calculatePace(items);
+      const basePace = calculatePace(items);
+      const paceOverride = meals?.[day]?.paceOverride;
+      const pace = paceOverride || basePace;
+      const cyclePace = () => {
+        const next = PACE_CYCLE[(PACE_CYCLE.indexOf(pace) + 1) % PACE_CYCLE.length];
+        setMeals?.((prev) => ({ ...prev, [day]: { ...(prev?.[day] || {}), paceOverride: next === basePace ? undefined : next } }));
+      };
 
       return (
         <div
@@ -272,18 +280,21 @@ function Schedule({ schedule, setSchedule }) {
               {day}
             </div>
 
-            <div
+            <button
+              onClick={cyclePace}
               style={{
                 padding: '9px 15px',
                 borderRadius: '999px',
                 fontSize: '13px',
                 fontWeight: '700',
                 textTransform: 'lowercase',
+                border: 'none',
+                cursor: 'pointer',
                 ...paceStyles[pace],
               }}
             >
-              {pace}
-            </div>
+              {pace}{paceOverride ? ' ✎' : ''}
+            </button>
           </div>
 
           {items.length === 0 ? (

@@ -13,7 +13,7 @@ const DINNER_TIME_OPTIONS = [
   { value: '20:00', label: '8:00 PM' },
 ];
 
-function MyHome({ members, setMembers, schedule, setSchedule }) {
+function MyHome({ members, setMembers, schedule, setSchedule, meals, setMeals }) {
   const [sheet, setSheet] = useState(null);
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState('');
@@ -599,7 +599,7 @@ const hasDinnerWindow =
   )}
 </div>
 
-<Schedule schedule={schedule} setSchedule={setSchedule} />
+<Schedule schedule={schedule} setSchedule={setSchedule} meals={meals} setMeals={setMeals} />
   </>
 )}
 </div>

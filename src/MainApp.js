@@ -725,6 +725,8 @@ useEffect(() => {
       setMembers={setMembers}
       schedule={schedule}
       setSchedule={setSchedule}
+      meals={meals}
+      setMeals={setMeals}
     />
   )}
 
