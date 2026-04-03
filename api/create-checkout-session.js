@@ -21,15 +21,6 @@ async function stripePost(path, params, secretKey) {
   return data;
 }
 
-async function stripeGet(path, secretKey) {
-  const res = await fetch(`https://api.stripe.com/v1${path}`, {
-    headers: { 'Authorization': `Bearer ${secretKey}` },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.error?.message || `Stripe error ${res.status}`);
-  return data;
-}
-
 export default async function handler(req, res) {
   const origin = req.headers.origin;
   res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]);
@@ -43,9 +34,11 @@ export default async function handler(req, res) {
   if (!authHeader?.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
   const token = authHeader.slice(7);
 
+  // Use user's JWT so RLS allows writes
   const supabase = createClient(
     process.env.REACT_APP_SUPABASE_URL,
-    process.env.REACT_APP_SUPABASE_ANON_KEY
+    process.env.REACT_APP_SUPABASE_ANON_KEY,
+    { global: { headers: { Authorization: `Bearer ${token}` } } }
   );
 
   const { data: { user }, error: authError } = await supabase.auth.getUser(token);
@@ -81,11 +74,14 @@ export default async function handler(req, res) {
         'metadata[supabase_user_id]': user.id,
       }, secretKey);
       customerId = customer.id;
-      await supabase.from('accounts').update({ stripe_customer_id: customerId }).eq('user_id', user.id);
+      // Use SECURITY DEFINER RPC to save customer ID (bypasses RLS reliably)
+      await supabase.rpc('save_stripe_customer_id', {
+        p_user_id: user.id,
+        p_stripe_customer_id: customerId,
+      });
     }
 
     const appUrl = origin || 'https://tablemates.io';
-    const isProPlan = plan === 'pro';
 
     const sessionParams = {
       customer: customerId,
@@ -96,7 +92,7 @@ export default async function handler(req, res) {
       success_url: `${appUrl}?checkout=success`,
       cancel_url: `${appUrl}?checkout=cancelled`,
     };
-    if (isProPlan) {
+    if (plan === 'pro') {
       sessionParams['subscription_data[trial_period_days]'] = '7';
     }
 
