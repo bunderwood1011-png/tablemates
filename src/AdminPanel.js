@@ -16,8 +16,7 @@ const maskEmail = (email) => {
 };
 
 function AdminPanel() {
-  const [accounts, setAccounts] = useState([]);
-  const [waitlist, setWaitlist] = useState([]);
+  const [users, setUsers] = useState([]);
   const [feedback, setFeedback] = useState([]);
   const [errors, setErrors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,16 +38,14 @@ function AdminPanel() {
   const load = async () => {
     setLoading(true);
     setLoadError('');
-    const [acctRes, wlRes, fbRes, errRes] = await Promise.all([
-      supabase.rpc('get_all_accounts_admin'),
-      supabase.rpc('get_waitlist_admin'),
+    const [usersRes, fbRes, errRes] = await Promise.all([
+      supabase.rpc('get_all_users_admin'),
       supabase.rpc('get_feedback_admin'),
       supabase.rpc('get_error_logs_admin'),
     ]);
-    const firstError = acctRes.error || wlRes.error || fbRes.error || errRes.error;
+    const firstError = usersRes.error || fbRes.error || errRes.error;
     if (firstError) setLoadError(firstError.message);
-    setAccounts(acctRes.data || []);
-    setWaitlist(wlRes.data || []);
+    setUsers(usersRes.data || []);
     setFeedback(fbRes.data || []);
     setErrors(errRes.data || []);
     setLoading(false);
@@ -68,8 +65,8 @@ function AdminPanel() {
   const toggleBeta = async (userId, currentValue) => {
     setTogglingId(userId);
     await supabase.rpc('set_beta_user', { target_user_id: userId, beta_value: !currentValue });
-    setAccounts((prev) =>
-      prev.map((a) => a.user_id === userId ? { ...a, beta_user: !currentValue } : a)
+    setUsers((prev) =>
+      prev.map((u) => u.id === userId ? { ...u, beta_user: !currentValue } : u)
     );
     setTogglingId(null);
   };
@@ -138,8 +135,10 @@ function AdminPanel() {
     setPublishingId(null);
   };
 
-  const betaCount = accounts.filter((a) => a.beta_user).length;
-  const referralCount = accounts.filter((a) => a.referred_by).length;
+  const signedUp = users.filter((u) => !u.is_waitlisted);
+  const waitlisted = users.filter((u) => u.is_waitlisted);
+  const betaCount = signedUp.filter((u) => u.beta_user).length;
+  const referralCount = signedUp.filter((u) => u.referred_by).length;
 
   const formatDate = (ts) => {
     if (!ts) return '—';
@@ -161,8 +160,7 @@ function AdminPanel() {
   };
 
   const TABS = [
-    { key: 'accounts', label: `Users (${accounts.length})` },
-    { key: 'waitlist', label: `Waitlist (${waitlist.length})` },
+    { key: 'accounts', label: `Users (${users.length})` },
     { key: 'feedback', label: `Feedback (${feedback.length})` },
     { key: 'errors', label: `Errors (${errors.length})` },
   ];
@@ -184,10 +182,10 @@ function AdminPanel() {
       {/* Stats */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
         {[
-          { label: 'Total users', value: accounts.length },
+          { label: 'Signed up', value: signedUp.length },
           { label: 'Beta users', value: betaCount },
           { label: 'Via referral', value: referralCount },
-          { label: 'Waitlist', value: waitlist.length },
+          { label: 'Waitlist', value: waitlisted.length },
           { label: 'Feedback', value: feedback.length },
           { label: 'Errors', value: errors.length },
         ].map((stat) => (
@@ -225,77 +223,71 @@ function AdminPanel() {
       {loading ? (
         <div style={{ textAlign: 'center', color: '#999', fontSize: '14px', padding: '40px 0' }}>Loading...</div>
       ) : view === 'accounts' ? (
-        accounts.map((acct) => (
-          <div key={acct.user_id} style={cardStyle}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {acct.email}
-                  {acct.is_admin && <span style={{ marginLeft: '6px', fontSize: '11px', background: '#F3E8FF', color: '#7C3AED', borderRadius: '6px', padding: '2px 6px', fontWeight: '700' }}>admin</span>}
-                </div>
-                <div style={{ fontSize: '12px', color: '#999', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  <span>Joined {formatDate(acct.created_at)}</span>
-                  {acct.referred_by && <span style={{ color: '#1D9E75' }}>via referral</span>}
-                  {acct.referral_code && <span>code: {acct.referral_code}</span>}
-                </div>
-              </div>
-              <button
-                onClick={() => toggleBeta(acct.user_id, acct.beta_user)}
-                disabled={togglingId === acct.user_id || acct.is_admin}
-                style={{
-                  flexShrink: 0, padding: '7px 14px', borderRadius: '20px', border: '1.5px solid',
-                  borderColor: acct.beta_user ? '#1D9E75' : '#ddd',
-                  background: acct.beta_user ? '#E1F5EE' : '#fafafa',
-                  color: acct.beta_user ? '#1D9E75' : '#888',
-                  fontSize: '12px', fontWeight: '700',
-                  cursor: acct.is_admin ? 'default' : 'pointer',
-                  opacity: togglingId === acct.user_id ? 0.5 : 1,
-                }}
-              >
-                {acct.beta_user ? 'Beta ✓' : 'Grant beta'}
-              </button>
-            </div>
-          </div>
-        ))
-      ) : view === 'waitlist' ? (
-        waitlist.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#999', fontSize: '14px', padding: '40px 0' }}>No waitlist entries yet.</div>
-        ) : waitlist.map((entry) => (
-          <div key={entry.id} style={cardStyle}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-              <div>
-                <div style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a' }}>{entry.email}</div>
-                <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>{formatDate(entry.created_at)}</div>
-                {inviteCodes[entry.id] && (
-                  <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: '13px', fontWeight: '700', color: '#1D9E75', background: '#E1F5EE', padding: '4px 10px', borderRadius: '8px', letterSpacing: '0.05em' }}>
-                      {inviteCodes[entry.id]}
-                    </span>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(inviteCodes[entry.id])}
-                      style={{ fontSize: '11px', color: '#888', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                    >
-                      copy
-                    </button>
+        <>
+          {users.map((user) => (
+            <div key={user.id} style={cardStyle}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {user.email}
+                    {user.is_waitlisted && <span style={{ marginLeft: '6px', fontSize: '11px', background: '#FEF3C7', color: '#B45309', borderRadius: '6px', padding: '2px 6px', fontWeight: '700' }}>waitlist</span>}
+                    {user.is_admin && <span style={{ marginLeft: '6px', fontSize: '11px', background: '#F3E8FF', color: '#7C3AED', borderRadius: '6px', padding: '2px 6px', fontWeight: '700' }}>admin</span>}
                   </div>
+                  <div style={{ fontSize: '12px', color: '#999', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <span>Joined {formatDate(user.created_at)}</span>
+                    {user.referred_by && <span style={{ color: '#1D9E75' }}>via referral</span>}
+                    {user.referral_code && <span>code: {user.referral_code}</span>}
+                    {user.subscription_tier && <span style={{ color: '#6366F1' }}>{user.subscription_tier}</span>}
+                  </div>
+                  {user.is_waitlisted && inviteCodes[user.id] && (
+                    <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: '13px', fontWeight: '700', color: '#1D9E75', background: '#E1F5EE', padding: '4px 10px', borderRadius: '8px', letterSpacing: '0.05em' }}>
+                        {inviteCodes[user.id]}
+                      </span>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(inviteCodes[user.id])}
+                        style={{ fontSize: '11px', color: '#888', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                      >
+                        copy
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {user.is_waitlisted ? (
+                  <button
+                    onClick={() => generateInvite(user.id)}
+                    disabled={generatingInvite === user.id}
+                    style={{
+                      flexShrink: 0, padding: '7px 14px', borderRadius: '20px', border: '1.5px solid #ddd',
+                      background: inviteCodes[user.id] ? '#E1F5EE' : '#fafafa',
+                      color: inviteCodes[user.id] ? '#1D9E75' : '#888',
+                      fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+                      opacity: generatingInvite === user.id ? 0.5 : 1,
+                    }}
+                  >
+                    {generatingInvite === user.id ? '...' : inviteCodes[user.id] ? 'Regenerate' : 'Generate invite'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => toggleBeta(user.id, user.beta_user)}
+                    disabled={togglingId === user.id || user.is_admin}
+                    style={{
+                      flexShrink: 0, padding: '7px 14px', borderRadius: '20px', border: '1.5px solid',
+                      borderColor: user.beta_user ? '#1D9E75' : '#ddd',
+                      background: user.beta_user ? '#E1F5EE' : '#fafafa',
+                      color: user.beta_user ? '#1D9E75' : '#888',
+                      fontSize: '12px', fontWeight: '700',
+                      cursor: user.is_admin ? 'default' : 'pointer',
+                      opacity: togglingId === user.id ? 0.5 : 1,
+                    }}
+                  >
+                    {user.beta_user ? 'Beta ✓' : 'Grant beta'}
+                  </button>
                 )}
               </div>
-              <button
-                onClick={() => generateInvite(entry.id)}
-                disabled={generatingInvite === entry.id}
-                style={{
-                  flexShrink: 0, padding: '7px 14px', borderRadius: '20px', border: '1.5px solid #ddd',
-                  background: inviteCodes[entry.id] ? '#E1F5EE' : '#fafafa',
-                  color: inviteCodes[entry.id] ? '#1D9E75' : '#888',
-                  fontSize: '12px', fontWeight: '700', cursor: 'pointer',
-                  opacity: generatingInvite === entry.id ? 0.5 : 1,
-                }}
-              >
-                {generatingInvite === entry.id ? '...' : inviteCodes[entry.id] ? 'Regenerate' : 'Generate invite'}
-              </button>
             </div>
-          </div>
-        ))
+          ))}
+        </>
       ) : view === 'feedback' ? (
         feedback.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#999', fontSize: '14px', padding: '40px 0' }}>No feedback yet.</div>
