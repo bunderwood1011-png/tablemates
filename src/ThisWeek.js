@@ -698,6 +698,12 @@ RELAXED DAY MEAL RULES:
         'Do not label oven meals as 20–30 minutes. ' +
         'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
         'Do not repeat meals within the same week. ' +
+        'VARIETY IS ESSENTIAL. Across the week, vary: ' +
+        '(1) Cuisine — include a mix from American, Mexican, Italian, Asian, Mediterranean, and others. ' +
+        '(2) Protein — do not use the same protein (chicken, beef, pork, seafood, vegetarian) more than twice. ' +
+        '(3) Cooking method — mix stovetop, oven, slow cooker, air fryer, and no-cook across the week. ' +
+        '(4) Format — mix up bowls, sandwiches, pasta, stir-fry, roasts, soups, and salads. ' +
+        'Avoid defaulting to generic chicken dishes every night. Be creative and specific with meal names. ' +
         (existingMealNames ? `Avoid repeating these previously suggested meals if possible: ${existingMealNames}. ` : '') +
         (savedRecipesPrompt ? savedRecipesPrompt : '') +
         (communityRecipesPrompt ? communityRecipesPrompt : '') +
