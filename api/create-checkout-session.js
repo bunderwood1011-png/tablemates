@@ -1,8 +1,4 @@
-import dotenv from 'dotenv';
-import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
-
-dotenv.config({ path: '.env.local' });
 
 const ALLOWED_ORIGINS = [
   'https://www.tablemates.io',
@@ -10,6 +6,29 @@ const ALLOWED_ORIGINS = [
   'https://tablemates-psi.vercel.app',
   'http://localhost:3000',
 ];
+
+async function stripePost(path, params, secretKey) {
+  const res = await fetch(`https://api.stripe.com/v1${path}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${secretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams(params).toString(),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || `Stripe error ${res.status}`);
+  return data;
+}
+
+async function stripeGet(path, secretKey) {
+  const res = await fetch(`https://api.stripe.com/v1${path}`, {
+    headers: { 'Authorization': `Bearer ${secretKey}` },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || `Stripe error ${res.status}`);
+  return data;
+}
 
 export default async function handler(req, res) {
   const origin = req.headers.origin;
@@ -20,7 +39,6 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // Verify JWT
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
   const token = authHeader.slice(7);
@@ -33,60 +51,60 @@ export default async function handler(req, res) {
   const { data: { user }, error: authError } = await supabase.auth.getUser(token);
   if (authError || !user) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { priceId, plan } = req.body || {};
-
-  // Resolve price from plan name (preferred) or fall back to explicit priceId
+  const { plan } = req.body || {};
   const PRICE_MAP = {
     pro: process.env.STRIPE_PRO_PRICE_ID,
     founding: process.env.STRIPE_FOUNDING_PRICE_ID,
   };
-  const resolvedPriceId = (plan && PRICE_MAP[plan]) || priceId;
-  if (!resolvedPriceId) return res.status(400).json({ error: 'Missing priceId' });
+  const resolvedPriceId = plan && PRICE_MAP[plan];
+  if (!resolvedPriceId) return res.status(400).json({ error: 'Invalid plan' });
 
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) return res.status(500).json({ error: 'Stripe not configured' });
 
-  // Get or create Stripe customer
-  const { data: account } = await supabase
-    .from('accounts')
-    .select('stripe_customer_id, subscription_status, subscription_tier')
-    .eq('user_id', user.id)
-    .single();
-
-  // Don't let lifetime users checkout
-  if (account?.subscription_tier === 'beta_lifetime') {
-    return res.status(400).json({ error: 'You already have lifetime access.' });
-  }
-
-  let customerId = account?.stripe_customer_id;
-
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: user.email,
-      metadata: { supabase_user_id: user.id },
-    });
-    customerId = customer.id;
-    await supabase.from('accounts').update({ stripe_customer_id: customerId }).eq('user_id', user.id);
-  }
-
-  const appUrl = origin || 'https://tablemates.io';
-
-  let session;
   try {
-    session = await stripe.checkout.sessions.create({
-    customer: customerId,
-    payment_method_types: ['card'],
-    line_items: [{ price: resolvedPriceId, quantity: 1 }],
-    mode: 'subscription',
-    subscription_data: {
-      trial_period_days: resolvedPriceId === process.env.STRIPE_PRO_PRICE_ID ? 7 : 0,
-    },
+    const { data: account } = await supabase
+      .from('accounts')
+      .select('stripe_customer_id, subscription_tier')
+      .eq('user_id', user.id)
+      .single();
+
+    if (account?.subscription_tier === 'beta_lifetime') {
+      return res.status(400).json({ error: 'You already have lifetime access.' });
+    }
+
+    let customerId = account?.stripe_customer_id;
+
+    if (!customerId) {
+      const customer = await stripePost('/customers', {
+        email: user.email,
+        'metadata[supabase_user_id]': user.id,
+      }, secretKey);
+      customerId = customer.id;
+      await supabase.from('accounts').update({ stripe_customer_id: customerId }).eq('user_id', user.id);
+    }
+
+    const appUrl = origin || 'https://tablemates.io';
+    const isProPlan = plan === 'pro';
+
+    const sessionParams = {
+      customer: customerId,
+      'payment_method_types[0]': 'card',
+      'line_items[0][price]': resolvedPriceId,
+      'line_items[0][quantity]': '1',
+      mode: 'subscription',
       success_url: `${appUrl}?checkout=success`,
       cancel_url: `${appUrl}?checkout=cancelled`,
-    });
-  } catch (stripeErr) {
-    console.error('Stripe error:', stripeErr.message);
-    return res.status(500).json({ error: stripeErr.message });
-  }
+    };
+    if (isProPlan) {
+      sessionParams['subscription_data[trial_period_days]'] = '7';
+    }
 
-  return res.status(200).json({ url: session.url });
+    const session = await stripePost('/checkout/sessions', sessionParams, secretKey);
+    return res.status(200).json({ url: session.url });
+
+  } catch (err) {
+    console.error('Checkout error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
 }
