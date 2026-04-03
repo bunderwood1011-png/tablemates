@@ -648,6 +648,10 @@ const hasDinnerWindow =
               )}
             </div>
 
+            <div style={{ fontSize: '11px', color: '#aaa', marginBottom: '10px', lineHeight: '1.5' }}>
+              Add ingredients, foods, or cuisines (e.g. "Italian", "no spicy food")
+            </div>
+
             <div className="tag-section">
               <div className="tag-label">loves</div>
               <TagRow
