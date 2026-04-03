@@ -70,7 +70,9 @@ export default async function handler(req, res) {
 
   const appUrl = origin || 'https://tablemates.io';
 
-  const session = await stripe.checkout.sessions.create({
+  let session;
+  try {
+    session = await stripe.checkout.sessions.create({
     customer: customerId,
     payment_method_types: ['card'],
     line_items: [{ price: resolvedPriceId, quantity: 1 }],
@@ -78,9 +80,13 @@ export default async function handler(req, res) {
     subscription_data: {
       trial_period_days: resolvedPriceId === process.env.STRIPE_PRO_PRICE_ID ? 7 : 0,
     },
-    success_url: `${appUrl}?checkout=success`,
-    cancel_url: `${appUrl}?checkout=cancelled`,
-  });
+      success_url: `${appUrl}?checkout=success`,
+      cancel_url: `${appUrl}?checkout=cancelled`,
+    });
+  } catch (stripeErr) {
+    console.error('Stripe error:', stripeErr.message);
+    return res.status(500).json({ error: stripeErr.message });
+  }
 
   return res.status(200).json({ url: session.url });
 }
