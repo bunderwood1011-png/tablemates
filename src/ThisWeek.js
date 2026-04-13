@@ -698,12 +698,13 @@ RELAXED DAY MEAL RULES:
         'Do not label oven meals as 20–30 minutes. ' +
         'Likes and dislikes are preferences, not absolute rules. Allergies are strict and must never be included. ' +
         'Do not repeat meals within the same week. ' +
-        'VARIETY IS ESSENTIAL. Across the week, vary: ' +
-        '(1) Cuisine — include a mix from American, Mexican, Italian, Asian, Mediterranean, and others. ' +
-        '(2) Protein — do not use the same protein (chicken, beef, pork, seafood, vegetarian) more than twice. ' +
-        '(3) Cooking method — mix stovetop, oven, slow cooker, air fryer, and no-cook across the week. ' +
-        '(4) Format — mix up bowls, sandwiches, pasta, stir-fry, roasts, soups, and salads. ' +
-        'Avoid defaulting to generic chicken dishes every night. Be creative and specific with meal names. ' +
+        'VARIETY IS MANDATORY — this is the most important rule. Treat each requirement below as a hard constraint, not a suggestion. ' +
+        '(1) Cuisine — every night MUST be a clearly different cuisine. Draw from the FULL global range: American, Mexican, Italian, Japanese, Thai, Indian, Korean, Chinese, Greek, Middle Eastern, Vietnamese, Ethiopian, Spanish, French, Moroccan, Caribbean, and more. Do NOT cluster multiple nights around the same region. No two nights can share the same cuisine. ' +
+        '(2) Protein — do not use the same protein (chicken, beef, pork, seafood, vegetarian) more than ONCE. Seven nights = at least 5 different proteins. ' +
+        '(3) Cooking method — every night must use a different primary method: stovetop, oven-roasted, sheet pan, slow cooker, air fryer, grill, no-cook/raw, steamed, braised. No method can appear twice. ' +
+        '(4) Format — no two nights can share the same format. Mix bowls, sandwiches, pasta, stir-fry, roasts, soups, tacos, curries, salads, skewers, dumplings, and more. ' +
+        '(5) Flavor profile — vary between savory-umami, bright-acidic, spicy, creamy, smoky, herby, sweet-savory. ' +
+        'Absolutely avoid defaulting to "chicken + vegetable + starch" patterns. Be bold and specific with meal names (e.g., "Gochujang Glazed Pork Belly Bowls" not "Korean Pork"). ' +
         (existingMealNames ? `Avoid repeating these previously suggested meals if possible: ${existingMealNames}. ` : '') +
         (savedRecipesPrompt ? savedRecipesPrompt : '') +
         (communityRecipesPrompt ? communityRecipesPrompt : '') +
@@ -815,9 +816,9 @@ const skipMealForDay = (day) => {
         ? `The current meal is: ${current}. You MUST NOT suggest this meal or anything very similar to it. `
         : '') +
       (otherMealNames
-        ? `Meals already planned this week: ${otherMealNames}. You MUST suggest something clearly different in main protein, cuisine, and flavor profile. Do NOT repeat or slightly modify these meals. `
+        ? `Meals already planned this week: ${otherMealNames}. You MUST suggest something with a completely different cuisine, protein, and cooking method from ALL of these. Do NOT repeat or slightly modify any of these meals. `
         : '') +
-      'The new meal must feel distinctly different from the rest of the week. Avoid repeating similar ingredients, cooking styles, or cuisines. ' +
+      'The new meal must be a genuinely different cuisine (draw from the full global range: Japanese, Thai, Indian, Korean, Chinese, Greek, Middle Eastern, Vietnamese, Ethiopian, Mexican, Italian, Spanish, French, Moroccan, Caribbean, American, and more). Be bold and specific with the meal name. ' +
       'Return ONLY valid JSON. Do not include markdown, bullet points, commentary, or extra text. The response must start with { and end with }. Use this exact format: {"name":"","time":"","description":"","modifications":[]}';
 
     console.log('SWAP TRIGGERED');
