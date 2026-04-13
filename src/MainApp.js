@@ -77,12 +77,22 @@ function MainApp({ user }) {
   const weekKey = useMemo(() => {
     const now = new Date();
     const start = new Date(now);
-    const day = start.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    start.setDate(start.getDate() + diff);
+    const day = start.getDay(); // 0 = Sunday, 1 = Monday, ...
+
+    // If the user's planning day is Sunday and today IS Sunday,
+    // they're planning for the upcoming week — point to next Monday's key
+    // so the plan doesn't vanish when Monday arrives.
+    const planningDaySunday = schedule?.planning_day === 'Sunday';
+    if (planningDaySunday && day === 0) {
+      start.setDate(start.getDate() + 1); // next Monday
+    } else {
+      const diff = day === 0 ? -6 : 1 - day;
+      start.setDate(start.getDate() + diff);
+    }
+
     start.setHours(0, 0, 0, 0);
     return start.toISOString().slice(0, 10);
-  }, []);
+  }, [schedule?.planning_day]);
 
   useEffect(() => {
     const loadProfiles = async () => {
